@@ -47,7 +47,7 @@ public class Test {
 		for (Properties properties : arr) {
 			 Set<Object> set = properties.keySet();
 			 for (Object object : set) {
-				System.out.println("gitsubmit"+object);
+				System.out.println("git"+object);
 			}
 		}
 	}
