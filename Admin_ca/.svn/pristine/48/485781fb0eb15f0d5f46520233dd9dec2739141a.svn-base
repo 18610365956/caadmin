@@ -1,0 +1,315 @@
+package cn.com.infosec.netcert.caAdmin.ui.template.nextSubmit.encry;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.Set;
+
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+
+import cn.com.infosec.netcert.caAdmin.ui.template.templateUtils.Extension;
+import cn.com.infosec.netcert.caAdmin.ui.template.templateUtils.ExtensionEntry;
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+
+public class Panel_enKeyUsage_enc extends ApplicationWindow {
+
+	// 增强密钥用法
+	private Text text_oID_enc;
+	private Button btn_serverAuth_enc, btn_clientAuth_enc, btn_codeSign_enc, btn_emailPro_enc, btn_timeStamp_enc,
+			btn_OCSPSign_enc, btn_add_enc, btn_delete_enc;
+	public Button btn_enKeyUsageIscritical_enc;
+	private org.eclipse.swt.widgets.List list1_enc;
+	private Set<String> oIDs_enc = new HashSet<String>();
+
+	private static ResourceBundle l = Env.getLanguage();
+
+	/**
+	 * Create the application window.
+	 */
+	public Panel_enKeyUsage_enc() {
+		super(null);
+		addToolBar(SWT.FLAT | SWT.WRAP);
+	}
+
+	// 增强密钥用法视图
+	protected void panel_enKeyUsage_enc(Composite comp_enkeyUsage_enc) {
+
+		Group group_24 = new Group(comp_enkeyUsage_enc, SWT.NONE);
+		GridData gd_group_24 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_group_24.heightHint = 493;
+		gd_group_24.widthHint = 500;
+		group_24.setLayoutData(gd_group_24);
+		group_24.setBounds(0, 0, 480, 412);
+		group_24.setText(l.getString("en_keyUsage"));
+		GridLayout gl_group_24 = new GridLayout(1, false);
+		gl_group_24.marginTop = 10;
+		gl_group_24.marginBottom = 10;
+		gl_group_24.marginLeft = 10;
+		gl_group_24.marginRight = 10;
+		gl_group_24.horizontalSpacing = 50;
+		gl_group_24.verticalSpacing = 10;
+
+		group_24.setLayout(gl_group_24);
+
+		btn_enKeyUsageIscritical_enc = new Button(group_24, SWT.CHECK);
+		GridData gd_btn_enKeyUsageIscritical_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_enKeyUsageIscritical_enc.heightHint = 24;
+		gd_btn_enKeyUsageIscritical_enc.widthHint = 143;
+		btn_enKeyUsageIscritical_enc.setLayoutData(gd_btn_enKeyUsageIscritical_enc);
+		btn_enKeyUsageIscritical_enc.setText(l.getString("critical"));
+
+		Label label_2 = new Label(group_24, SWT.SEPARATOR | SWT.HORIZONTAL);
+		GridData gd_label_2 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_label_2.widthHint = 480;
+		label_2.setLayoutData(gd_label_2);
+
+		Group group_241 = new Group(group_24, SWT.NONE);
+		GridData gd_group_241 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_group_241.widthHint = 472;
+		gd_group_241.heightHint = 182;
+		group_241.setLayoutData(gd_group_241);
+		group_241.setText(l.getString("standardExtKeyUsage"));
+		group_241.setLayout(new GridLayout(2, false));
+
+		btn_serverAuth_enc = new Button(group_241, SWT.CHECK);
+		GridData gd_btn_serverAuth_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_serverAuth_enc.heightHint = 44;
+		btn_serverAuth_enc.setLayoutData(gd_btn_serverAuth_enc);
+		btn_serverAuth_enc.setText("serverAuth");
+
+		btn_emailPro_enc = new Button(group_241, SWT.CHECK);
+		btn_emailPro_enc.setText("emailProtection");
+
+		btn_clientAuth_enc = new Button(group_241, SWT.CHECK);
+		GridData gd_btn_clientAuth_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_clientAuth_enc.heightHint = 48;
+		btn_clientAuth_enc.setLayoutData(gd_btn_clientAuth_enc);
+		btn_clientAuth_enc.setText("clientAuth");
+
+		btn_timeStamp_enc = new Button(group_241, SWT.CHECK);
+		btn_timeStamp_enc.setText("timeStamping");
+
+		btn_codeSign_enc = new Button(group_241, SWT.CHECK);
+		GridData gd_btn_codeSign_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_codeSign_enc.widthHint = 269;
+		gd_btn_codeSign_enc.heightHint = 40;
+		btn_codeSign_enc.setLayoutData(gd_btn_codeSign_enc);
+		btn_codeSign_enc.setText("codeSigning");
+
+		btn_OCSPSign_enc = new Button(group_241, SWT.CHECK);
+		btn_OCSPSign_enc.setText("OCSPSigning");
+
+		Group group_132 = new Group(group_24, SWT.NONE);
+		GridLayout gl_group_132 = new GridLayout(4, false);
+
+		gl_group_132.verticalSpacing = 15;
+		group_132.setLayout(gl_group_132);
+		GridData gd_group_132 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_group_132.heightHint = 165;
+		gd_group_132.widthHint = 469;
+		group_132.setLayoutData(gd_group_132);
+
+		Label lblNewLabel_132 = new Label(group_132, SWT.NONE);
+		lblNewLabel_132.setText("OID:");
+
+		text_oID_enc = new Text(group_132, SWT.BORDER);
+		GridData gd_text_oID_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_text_oID_enc.widthHint = 258;
+		text_oID_enc.setLayoutData(gd_text_oID_enc);
+		new Label(group_132, SWT.NONE);
+
+		btn_add_enc = new Button(group_132, SWT.NONE);
+		GridData gd_btn_add_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_add_enc.widthHint = 78;
+		btn_add_enc.setLayoutData(gd_btn_add_enc);
+		btn_add_enc.setText(l.getString("add"));
+		btn_add_enc.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				String oID_enc = text_oID_enc.getText().trim();
+				if (oID_enc == null || oID_enc.length() == 0) {
+					MessageBox messageBox = new MessageBox(getShell(), SWT.ERROR);
+					messageBox.setMessage(l.getString("Notice_null_OID"));
+					messageBox.open();
+					return;
+				}
+				if (!oIDs_enc.contains(oID_enc)) {
+					oIDs_enc.add(oID_enc);
+					list1_enc.add(oID_enc);
+				} else {
+					MessageBox messageBox = new MessageBox(getShell(), SWT.ERROR);
+					messageBox.setMessage(l.getString("Notice_exist_OID"));
+					messageBox.open();
+				}
+				text_oID_enc.setText("");
+			}
+		});
+		new Label(group_132, SWT.NONE);
+
+		list1_enc = new org.eclipse.swt.widgets.List(group_132, SWT.BORDER);
+		GridData gd_list1_enc = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_list1_enc.widthHint = 260;
+		gd_list1_enc.heightHint = 78;
+		list1_enc.setLayoutData(gd_list1_enc);
+		new Label(group_132, SWT.NONE);
+
+		btn_delete_enc = new Button(group_132, SWT.NONE);
+		GridData gd_btn_delete_enc = new GridData(SWT.LEFT, SWT.TOP, false, false, 1, 1);
+		gd_btn_delete_enc.widthHint = 76;
+		btn_delete_enc.setLayoutData(gd_btn_delete_enc);
+		btn_delete_enc.setText(l.getString("delete"));
+		btn_delete_enc.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				if (list1_enc.getSelectionIndex() == -1) {
+					MessageBox messageBox = new MessageBox(getShell(), SWT.ERROR);
+					messageBox.setMessage(l.getString("Notice_not_chooseOID"));
+					messageBox.open();
+					return;
+				}
+				String oID_enc = list1_enc.getSelection()[0];
+				oIDs_enc.remove(oID_enc);
+				list1_enc.remove(list1_enc.getSelectionIndex());
+			}
+		});
+	}
+
+	// 封装增强密钥用法
+	public List<ExtensionEntry> packageTempInfo() {
+		List<ExtensionEntry> exList_enKeyUsage = new ArrayList<ExtensionEntry>();
+		if (btn_serverAuth_enc.getSelection()) {
+			ExtensionEntry entry_serverAuth = new ExtensionEntry();
+			entry_serverAuth.setOid("1.3.6.1.5.5.7.3.1");
+			exList_enKeyUsage.add(entry_serverAuth);
+		}
+		if (btn_clientAuth_enc.getSelection()) {
+			ExtensionEntry entry_clientAuth = new ExtensionEntry();
+			entry_clientAuth.setOid("1.3.6.1.5.5.7.3.2");
+			exList_enKeyUsage.add(entry_clientAuth);
+		}
+		if (btn_codeSign_enc.getSelection()) {
+			ExtensionEntry entry_codeSign = new ExtensionEntry();
+			entry_codeSign.setOid("1.3.6.1.5.5.7.3.3");
+			exList_enKeyUsage.add(entry_codeSign);
+		}
+		if (btn_emailPro_enc.getSelection()) {
+			ExtensionEntry entry_emailPro = new ExtensionEntry();
+			entry_emailPro.setOid("1.3.6.1.5.5.7.3.4");
+			exList_enKeyUsage.add(entry_emailPro);
+		}
+		if (btn_timeStamp_enc.getSelection()) {
+			ExtensionEntry entry_timeStamp = new ExtensionEntry();
+			entry_timeStamp.setOid("1.3.6.1.5.5.7.3.8");
+			exList_enKeyUsage.add(entry_timeStamp);
+		}
+		if (btn_OCSPSign_enc.getSelection()) {
+			ExtensionEntry entry_OCSPSign = new ExtensionEntry();
+			entry_OCSPSign.setOid("1.3.6.1.5.5.7.3.9");
+			exList_enKeyUsage.add(entry_OCSPSign);
+		}
+		if (oIDs_enc.size() != 0) {
+			for (String ss : oIDs_enc) {
+				ExtensionEntry entry_oid = new ExtensionEntry();
+				entry_oid.setOid(ss);
+				exList_enKeyUsage.add(entry_oid);
+			}
+		}
+		return exList_enKeyUsage;
+	}
+
+	// 加载增强密钥用法
+	public void loadCertTemplateInfo(Extension stand) {
+		btn_enKeyUsageIscritical_enc.setSelection(stand.isIscritical());
+		List<ExtensionEntry> exS_2 = stand.getExtensionEntrys();
+		for (ExtensionEntry ex : exS_2) {
+			switch (ex.getOid()) {
+			case "1.3.6.1.5.5.7.3.1":
+				btn_serverAuth_enc.setSelection(true);
+				break;
+			case "1.3.6.1.5.5.7.3.2":
+				btn_clientAuth_enc.setSelection(true);
+				break;
+			case "1.3.6.1.5.5.7.3.3":
+				btn_codeSign_enc.setSelection(true);
+				break;
+			case "1.3.6.1.5.5.7.3.4":
+				btn_emailPro_enc.setSelection(true);
+				break;
+			case "1.3.6.1.5.5.7.3.8":
+				btn_timeStamp_enc.setSelection(true);
+				break;
+			case "1.3.6.1.5.5.7.3.9":
+				btn_OCSPSign_enc.setSelection(true);
+				break;
+			default:
+				oIDs_enc.add(ex.getOid());
+				list1_enc.add(ex.getOid());
+			}
+		}
+	}
+
+	/**
+	 * Create contents of the application window.
+	 * @param parent
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+
+		Composite container = new Composite(parent, SWT.NONE);
+		GridLayout gl_composite = new GridLayout(1, false);
+		container.setLayout(gl_composite);
+
+		this.panel_enKeyUsage_enc(container);
+
+		return container;
+
+	}
+
+	/**
+	 * Launch the application.
+	 * @param args
+	 */
+	public static void main(String args[]) {
+		try {
+			Panel_enKeyUsage_enc window = new Panel_enKeyUsage_enc();
+			window.setBlockOnOpen(true);
+			window.open();
+			Display.getCurrent().dispose();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * Configure the shell.
+	 * @param newShell
+	 */
+	@Override
+	protected void configureShell(Shell newShell) {
+		super.configureShell(newShell);
+		newShell.setText("New Application");
+	}
+
+	/**
+	 * Return the initial size of the window.
+	 */
+	@Override
+	protected Point getInitialSize() {
+		return new Point(615, 677);
+	}
+
+}

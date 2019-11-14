@@ -1,0 +1,1847 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.ResourceBundle;
+import java.util.Set;
+
+import org.dom4j.Document;
+import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.action.Separator;
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MenuEvent;
+import org.eclipse.swt.events.MenuListener;
+import org.eclipse.swt.events.MouseAdapter;
+import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.SelectionListener;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.Tree;
+import org.eclipse.swt.widgets.TreeItem;
+
+import cn.com.infosec.netcert.caAdmin.ui.template.Panel_BasicTemplate;
+import cn.com.infosec.netcert.caAdmin.ui.template.Panel_Template;
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.PageUtil;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+
+/**
+ * BO管理员
+ * @Author 江岩
+ * @Time 2019-06-04 20:00
+ */
+public class BO extends ApplicationWindow {
+	private Panel_Template panel_Template;
+
+	private Control[] controls_Page;
+	private Composite comp_p, comp_RA, comp_Cert, comp_Template;
+	private Table table, tableRA, tableTemplate;
+	private TabFolder tabFolder;
+	private Tree treeRA, tree_op_ra;
+	private TreeItem rootRA, trtm_opRootRA;
+	private Text txt_email_RA, txt_tel_RA, txt_memo_RA, txt_userName_RA;
+	private Text text_templateName, txt_DN, txt_SN, txt_user;
+	private Button btnSubmitPerm_ra;
+	private Combo combo_qryTmpl, combo_currPage;
+
+	private Menu menu;
+	private MenuItem mLock, mUnlock, mGet2code, mUpdate, mRevoke;
+	private String g_adminName = null;
+
+	private ApplicationWindow self;
+	private org.eclipse.swt.widgets.List list_raIp;
+
+	private Set<String> ips = new HashSet<String>();
+	private HashMap<String, List<String[]>> dataCertInfoRA = new HashMap<String, List<String[]>>();
+	private HashMap<String, String[]> dataUserInfoRA = new HashMap<String, String[]>();
+	private HashMap<String, HashMap<String, HashSet<String>>> dataPermission = new HashMap<String, HashMap<String, HashSet<String>>>();
+
+	private Properties[] rows;
+	private Properties templateList = new Properties(); // 有授权的模板
+	private Map<String, List<String>> templateListMap = new HashMap<String, List<String>>();
+	private int pageSize = 10;
+	private PageUtil pageUtil_Cert;
+	private String curr_Page = "0", total_Page = "0";
+
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private Text text_IP;
+	private static ResourceBundle l = Env.getLanguage();
+	/**
+	 * BO构造方法
+	 */
+	public BO(String permStr) {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.MIN);
+		addMenuBar();
+		pageUtil_Cert = new PageUtil();
+		self = this;
+		SAXReader saxReader = new SAXReader();
+		try {
+			Document doc = saxReader.read(new ByteArrayInputStream(permStr.getBytes("UTF-8")));
+			Element root = doc.getRootElement();
+			List operations = root.elements();
+
+			if (operations != null) {
+				Iterator it = operations.iterator();
+				while (it.hasNext()) {
+					Element r = (Element) it.next();
+					if (r.elements() != null && r.elements().size() > 0) {				
+						String template = r.elementTextTrim("certtype");
+						String basedn = r.elementTextTrim("basedn");	
+						this.templateList.setProperty(template, basedn);
+						if(templateListMap.containsKey(template)){
+							List<String> list = templateListMap.get(template);
+							list.add(basedn);
+						} else {
+							List<String> list = new ArrayList<String>();
+							list.add(basedn);
+							templateListMap.put(template, list);					
+						}		
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.errlog("saxReader read fail", e);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_error_saxReader"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 绘画页面内容
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:01
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+		GridLayout gridLayout = new GridLayout(1, false);
+		gridLayout.marginBottom = 5;
+		container.setLayout(gridLayout);
+
+		tabFolder = new TabFolder(container, SWT.NONE);
+
+		// 证书管理
+		TabItem tabItem_Cert = new TabItem(tabFolder, SWT.NONE);
+		tabItem_Cert.setText(l.getString("cert_manage"));
+		comp_Cert = new Composite(tabFolder, SWT.NONE);
+		tabItem_Cert.setControl(comp_Cert);
+		panel_Cert(comp_Cert);
+
+		// tabItem_RA RA
+		TabItem tabItem_RA = new TabItem(tabFolder, SWT.NONE);
+		tabItem_RA.setText(l.getString("RA_manage"));
+		comp_RA = new Composite(tabFolder, SWT.NONE);
+		tabItem_RA.setControl(comp_RA);
+		panel_RA(comp_RA);
+
+		// Template 模板管理
+		TabItem tabItem_Template = new TabItem(tabFolder, SWT.NONE);
+		tabItem_Template.setText(l.getString("template_manage"));
+		comp_Template = new Composite(tabFolder, SWT.NONE);
+		tabItem_Template.setControl(comp_Template);
+		panel_Template(comp_Template);
+
+		tabFolder.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				if (tabFolder.getSelectionIndex() == 0) {
+					refresh("Cert");
+				} else if (tabFolder.getSelectionIndex() == 1) {
+					refresh("RA");
+				} else if (tabFolder.getSelectionIndex() == 2) {
+					refresh("Template");
+					queryTemplate();
+				}
+			}
+		});
+		refresh("Cert"); // as default tab
+
+		return container;
+	}
+
+	/**
+	 * 证书管理
+	 * @Description 证书申请，下载，查询
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:01
+	 * @version 1.0
+	 */
+	private void panel_Cert(Composite compositeCert) {
+		comp_Cert.setLayout(new FormLayout());
+
+		Button btnApplyCert = new Button(compositeCert, SWT.NONE);
+		FormData fd_btnApplyCert = new FormData();
+		fd_btnApplyCert.bottom = new FormAttachment(0, 61);
+		fd_btnApplyCert.right = new FormAttachment(0, 181);
+		fd_btnApplyCert.top = new FormAttachment(0, 32);
+		fd_btnApplyCert.left = new FormAttachment(0, 44);
+		btnApplyCert.setLayoutData(fd_btnApplyCert);
+		btnApplyCert.setText(l.getString("apply_cert"));
+		btnApplyCert.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					Panel_ReqCert panel_Req = new Panel_ReqCert(templateListMap);
+					panel_Req.setBlockOnOpen(true);
+					panel_Req.open();
+				}
+			}
+		});
+
+		Button btnDownCert = new Button(compositeCert, SWT.NONE);
+		FormData fd_btnDownCert = new FormData();
+		fd_btnDownCert.bottom = new FormAttachment(0, 106);
+		fd_btnDownCert.right = new FormAttachment(0, 181);
+		fd_btnDownCert.top = new FormAttachment(0, 77);
+		fd_btnDownCert.left = new FormAttachment(0, 44);
+		btnDownCert.setLayoutData(fd_btnDownCert);
+		btnDownCert.setText(l.getString("downloadCert"));
+		btnDownCert.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					Panel_DownCert pd = new Panel_DownCert();
+					pd.setBlockOnOpen(true);
+					pd.open();
+				}
+			}
+		});
+
+		Label lbl_DN = new Label(compositeCert, SWT.NONE);
+		FormData fd_lbl_DN = new FormData();
+		fd_lbl_DN.left = new FormAttachment(0, 293);
+		lbl_DN.setLayoutData(fd_lbl_DN);
+		lbl_DN.setAlignment(SWT.RIGHT);
+		lbl_DN.setText(l.getString("subject") + ":");
+
+		txt_DN = new Text(compositeCert, SWT.BORDER);
+		fd_lbl_DN.top = new FormAttachment(txt_DN, 3, SWT.TOP);
+		fd_lbl_DN.right = new FormAttachment(txt_DN, -18);
+		FormData fd_txt_DN = new FormData();
+		fd_txt_DN.bottom = new FormAttachment(0, 37);
+		fd_txt_DN.right = new FormAttachment(0, 662);
+		fd_txt_DN.top = new FormAttachment(0, 15);
+		fd_txt_DN.left = new FormAttachment(0, 379);
+		txt_DN.setTextLimit(100);
+		txt_DN.setLayoutData(fd_txt_DN);
+
+		Label lbl_SN = new Label(compositeCert, SWT.NONE);
+		FormData fd_lbl_SN = new FormData();
+		fd_lbl_SN.bottom = new FormAttachment(0, 77);
+		fd_lbl_SN.right = new FormAttachment(0, 365);
+		fd_lbl_SN.top = new FormAttachment(0, 56);
+		fd_lbl_SN.left = new FormAttachment(0, 184);
+		lbl_SN.setLayoutData(fd_lbl_SN);
+		lbl_SN.setAlignment(SWT.RIGHT);
+		lbl_SN.setText(l.getString("SN") + ":");
+
+		txt_SN = new Text(compositeCert, SWT.BORDER);
+		FormData fd_txt_SN = new FormData();
+		fd_txt_SN.bottom = new FormAttachment(0, 77);
+		fd_txt_SN.right = new FormAttachment(0, 516);
+		fd_txt_SN.top = new FormAttachment(0, 55);
+		fd_txt_SN.left = new FormAttachment(0, 379);
+		txt_SN.setTextLimit(20);
+		txt_SN.setLayoutData(fd_txt_SN);
+
+		Label lblNewLabel_4 = new Label(compositeCert, SWT.NONE);
+		FormData fd_lblNewLabel_4 = new FormData();
+		fd_lblNewLabel_4.bottom = new FormAttachment(0, 79);
+		fd_lblNewLabel_4.right = new FormAttachment(0, 662);
+		fd_lblNewLabel_4.top = new FormAttachment(0, 58);
+		fd_lblNewLabel_4.left = new FormAttachment(0, 520);
+		lblNewLabel_4.setLayoutData(fd_lblNewLabel_4);
+		lblNewLabel_4.setText("(" + l.getString("Hexadecimal") + ")");
+
+		Label lbl_user = new Label(compositeCert, SWT.NONE);
+		FormData fd_lbl_user = new FormData();
+		fd_lbl_user.right = new FormAttachment(0, 365);
+		fd_lbl_user.top = new FormAttachment(0, 95);
+		fd_lbl_user.left = new FormAttachment(0, 305);
+		lbl_user.setLayoutData(fd_lbl_user);
+		lbl_user.setAlignment(SWT.RIGHT);
+		lbl_user.setText(l.getString("username") + ":");
+
+		txt_user = new Text(compositeCert, SWT.BORDER);
+		fd_lbl_user.bottom = new FormAttachment(txt_user, 0, SWT.BOTTOM);
+		FormData fd_txt_user = new FormData();
+		fd_txt_user.bottom = new FormAttachment(0, 116);
+		fd_txt_user.right = new FormAttachment(0, 516);
+		fd_txt_user.top = new FormAttachment(0, 94);
+		fd_txt_user.left = new FormAttachment(0, 379);
+		txt_user.setTextLimit(20);
+		txt_user.setLayoutData(fd_txt_user);
+
+		Label lbl_tmpl = new Label(compositeCert, SWT.NONE);
+		FormData fd_lbl_tmpl = new FormData();
+		fd_lbl_tmpl.right = new FormAttachment(0, 770);
+		fd_lbl_tmpl.top = new FormAttachment(0, 13);
+		fd_lbl_tmpl.left = new FormAttachment(0, 679);
+		lbl_tmpl.setLayoutData(fd_lbl_tmpl);
+		lbl_tmpl.setAlignment(SWT.RIGHT);
+		lbl_tmpl.setText(l.getString("template") + ":");
+
+		combo_qryTmpl = new Combo(compositeCert, SWT.READ_ONLY);
+		FormData fd_combo_qryTmpl = new FormData();
+		fd_combo_qryTmpl.right = new FormAttachment(0, 1019);
+		fd_combo_qryTmpl.top = new FormAttachment(0, 10);
+		fd_combo_qryTmpl.left = new FormAttachment(0, 780);
+		combo_qryTmpl.setLayoutData(fd_combo_qryTmpl);
+		combo_qryTmpl.add("");
+		for (Object o : this.templateList.keySet()) {
+			combo_qryTmpl.add((String) o);
+		}
+
+		Button btnQry = new Button(compositeCert, SWT.NONE);
+		FormData fd_btnQry = new FormData();
+		fd_btnQry.bottom = new FormAttachment(0, 106);
+		fd_btnQry.right = new FormAttachment(0, 892);
+		fd_btnQry.top = new FormAttachment(0, 77);
+		fd_btnQry.left = new FormAttachment(0, 785);
+		btnQry.setLayoutData(fd_btnQry);
+		btnQry.setText(l.getString("queryCert"));
+
+		// 绑定到 查询按钮
+		btnQry.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert("1");
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+
+		table = new Table(compositeCert, SWT.BORDER | SWT.FULL_SELECTION);
+		FormData fd_table = new FormData();
+		fd_table.bottom = new FormAttachment(0, 482);
+		fd_table.right = new FormAttachment(0, 1202);
+		fd_table.top = new FormAttachment(0, 142);
+		fd_table.left = new FormAttachment(0, 10);
+		table.setLayoutData(fd_table);
+		table.setHeaderVisible(true);
+		table.setLinesVisible(true);
+
+		// 右键菜单
+		menu = new Menu(table);
+		table.setMenu(menu);
+		mUpdate = new MenuItem(menu, SWT.PUSH);
+		mUpdate.setText(l.getString("updateCert"));
+		mUpdate.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				Panel_UpdCert pu = new Panel_UpdCert(rows[table.getSelectionIndex()]);
+				pu.setBlockOnOpen(true);
+				int w = pu.open();
+				if (w == 0) {
+					listCert("1");
+				}
+			}
+		});
+		mGet2code = new MenuItem(menu, SWT.PUSH);
+		mGet2code.setText(l.getString("get2Code"));
+		mGet2code.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				Properties p = new Properties();
+				TableItem items = table.getSelection()[0];
+				p.setProperty(PropertiesKeysRes.CERTSN, items.getText(0));
+				p.setProperty(PropertiesKeysRes.SUBJECTDN, items.getText(3));
+				p.setProperty(PropertiesKeysRes.TEMPLATENAME, items.getText(7));
+				try {
+					Response resp = Env.client.sendRequest("GET2CODE", p);
+					FileDialog fd = new FileDialog(getShell(), SWT.SAVE);
+					fd.setFilterExtensions(new String[] { "*.txt" });
+					String f = fd.open();
+					if (f != null) {
+						FileWriter fw = new FileWriter(f);
+						fw.write(
+								l.getString("refno") + ":" + resp.getP().getProperty(PropertiesKeysRes.REFNO) + Utils.newLine);
+						fw.write(l.getString("authcode") + ":" + resp.getP().getProperty(PropertiesKeysRes.AUTHCODE));
+						fw.close();
+					}
+				} catch (ServerException se) {
+					log.errlog("Get2CODE fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_get2CODE") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception ee) {
+					log.errlog("Get2CODE fail", ee);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_get2CODE"));
+					mb.open();
+				}
+			}
+		});
+		mLock = new MenuItem(menu, SWT.PUSH);
+		mLock.setText(l.getString("lock"));
+		mLock.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				MessageBox confirm = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+				confirm.setMessage(l.getString("Notice_lockCert"));
+				int r = confirm.open();
+				if (SWT.YES == r) {
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.CERTSN,
+							rows[table.getSelectionIndex()].getProperty(PropertiesKeysRes.CERTSN));
+					try {
+						Env.client.sendRequest("LOCKCERT", p);
+						Properties row = rows[table.getSelectionIndex()];
+						row.setProperty(PropertiesKeysRes.CERTSTATUS, "3");
+						String seq = table.getItem(table.getSelectionIndex()).getText(0);
+						table.getItem(table.getSelectionIndex())
+								.setText(new String[] { seq, row.getProperty(PropertiesKeysRes.USERNAME),
+										row.getProperty(PropertiesKeysRes.CERTSN),
+										row.getProperty(PropertiesKeysRes.SUBJECTDN),
+										Utils.changeStatus(row.getProperty(PropertiesKeysRes.CERTSTATUS)),
+										row.getProperty(PropertiesKeysRes.NOTBEFORE),
+										row.getProperty(PropertiesKeysRes.NOTAFTER),
+										row.getProperty(PropertiesKeysRes.TEMPLATENAME) });
+					} catch (ServerException se) {
+						log.errlog("Lock cert fail", se);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(
+								l.getString("Notice_fail_lockCert") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+						mb.open();
+					} catch (Exception ee) {
+						log.errlog("Lock cert fail", ee);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_lockCert"));
+						mb.open();
+					}
+				}
+			}
+		});
+		mUnlock = new MenuItem(menu, SWT.PUSH);
+		mUnlock.setText(l.getString("unlockCert"));
+		mUnlock.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				MessageBox confirm = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+				confirm.setMessage(l.getString("Notice_unlockCert"));
+				int r = confirm.open();
+				if (SWT.YES == r) {
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.CERTSN,
+							rows[table.getSelectionIndex()].getProperty(PropertiesKeysRes.CERTSN));
+					try {
+						Env.client.sendRequest("UNLOCKCERT", p);
+						Properties row = rows[table.getSelectionIndex()];
+						row.setProperty(PropertiesKeysRes.CERTSTATUS, "2");
+						String seq = table.getItem(table.getSelectionIndex()).getText(0);
+						table.getItem(table.getSelectionIndex())
+								.setText(new String[] { seq, row.getProperty(PropertiesKeysRes.USERNAME),
+										row.getProperty(PropertiesKeysRes.CERTSN),
+										row.getProperty(PropertiesKeysRes.SUBJECTDN),
+										Utils.changeStatus(row.getProperty(PropertiesKeysRes.CERTSTATUS)),
+										row.getProperty(PropertiesKeysRes.NOTBEFORE),
+										row.getProperty(PropertiesKeysRes.NOTAFTER),
+										row.getProperty(PropertiesKeysRes.TEMPLATENAME) });
+					} catch (ServerException se) {
+						log.errlog("Unlock cert fail", se);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(
+								l.getString("Notice_fail_unlockCert") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+						mb.open();
+					} catch (Exception ee) {
+						log.errlog("Unlock cert fail", ee);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_unlockCert"));
+						mb.open();
+					}
+				}
+			}
+		});
+		mRevoke = new MenuItem(menu, SWT.PUSH);
+		mRevoke.setText(l.getString("revokeCert"));
+		mRevoke.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				MessageBox confirm = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+				confirm.setMessage(l.getString("Notice_revokeCert"));
+				int r = confirm.open();
+				if (SWT.YES == r) {
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.CERTSN,
+							rows[table.getSelectionIndex()].getProperty(PropertiesKeysRes.CERTSN));
+					try {
+						Env.client.sendRequest("REVOKECERT", p);
+						Properties row = rows[table.getSelectionIndex()];
+						row.setProperty(PropertiesKeysRes.CERTSTATUS, "4");
+						String seq = table.getItem(table.getSelectionIndex()).getText(0);
+						table.getItem(table.getSelectionIndex())
+								.setText(new String[] { seq, row.getProperty(PropertiesKeysRes.USERNAME),
+										row.getProperty(PropertiesKeysRes.CERTSN),
+										row.getProperty(PropertiesKeysRes.SUBJECTDN),
+										Utils.changeStatus(row.getProperty(PropertiesKeysRes.CERTSTATUS)),
+										row.getProperty(PropertiesKeysRes.NOTBEFORE),
+										row.getProperty(PropertiesKeysRes.NOTAFTER),
+										row.getProperty(PropertiesKeysRes.TEMPLATENAME) });
+					} catch (ServerException se) {
+						log.errlog("Revoke cert fail", se);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(
+								l.getString("Notice_fail_revokeCert") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+						mb.open();
+					} catch (Exception ee) {
+						log.errlog("Revoke cert fail", ee);
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_revokeCert"));
+						mb.open();
+					}
+				}
+			}
+		});
+
+		table.addMouseListener(new MouseAdapter() {
+			public void mouseDown(MouseEvent me) {
+				int idx = table.getSelectionIndex();
+				if (idx == -1) {
+					mLock.setEnabled(false);
+					mUnlock.setEnabled(false);
+					mGet2code.setEnabled(false);
+					mUpdate.setEnabled(false);
+					mRevoke.setEnabled(false);
+				} else {
+					String status = rows[idx].getProperty(PropertiesKeysRes.CERTSTATUS);
+					switch (Integer.parseInt(status)) {
+					case 1: //未下载
+						mLock.setEnabled(false);
+						mUnlock.setEnabled(false);
+						mGet2code.setEnabled(true);
+						mUpdate.setEnabled(false);
+						mRevoke.setEnabled(true);
+						break;
+					case 2: // 正常
+						mLock.setEnabled(true);
+						mUnlock.setEnabled(false);
+						mGet2code.setEnabled(false);
+						mUpdate.setEnabled(true);
+						mRevoke.setEnabled(true);
+						break;
+					case 3: // 锁定
+						mLock.setEnabled(false);
+						mUnlock.setEnabled(true);
+						mGet2code.setEnabled(false);
+						mUpdate.setEnabled(false);
+						mRevoke.setEnabled(true);
+						break;
+					case 4: //作废
+						mLock.setEnabled(false);
+						mUnlock.setEnabled(false);
+						mGet2code.setEnabled(false);
+						mUpdate.setEnabled(false);
+						mRevoke.setEnabled(false);
+						break;
+					}
+				}
+			}
+		});
+
+		TableColumn clm_seq = new TableColumn(table, SWT.NONE);
+		clm_seq.setWidth(55);
+		clm_seq.setText(l.getString("table_sn"));
+
+		TableColumn clm_user = new TableColumn(table, SWT.NONE);
+		clm_user.setWidth(100);
+		clm_user.setText(l.getString("username"));
+
+		TableColumn clm_sn = new TableColumn(table, SWT.NONE);
+		clm_sn.setWidth(130);
+		clm_sn.setText(l.getString("SN"));
+
+		TableColumn clm_dn = new TableColumn(table, SWT.NONE);
+		clm_dn.setWidth(305);
+		clm_dn.setText(l.getString("subject"));
+
+		TableColumn clm_state = new TableColumn(table, SWT.NONE);
+		clm_state.setWidth(82);
+		clm_state.setText(l.getString("status"));
+
+		TableColumn clm_notBefore = new TableColumn(table, SWT.NONE);
+		clm_notBefore.setWidth(118);
+		clm_notBefore.setText(l.getString("notBefore"));
+
+		TableColumn clm_notAfter = new TableColumn(table, SWT.NONE);
+		clm_notAfter.setWidth(118);
+		clm_notAfter.setText(l.getString("notAfter"));
+
+		TableColumn clm_tmpl = new TableColumn(table, SWT.NONE);
+		clm_tmpl.setWidth(128);
+		clm_tmpl.setText(l.getString("template"));
+
+		// 分页模块
+		Composite comp_Page = new Composite(compositeCert, SWT.NONE);
+		FormData fd_comp_Page = new FormData();
+		fd_comp_Page.bottom = new FormAttachment(100, -12);
+		fd_comp_Page.top = new FormAttachment(combo_qryTmpl, 466);
+		fd_comp_Page.left = new FormAttachment(0, 953);
+		fd_comp_Page.right = new FormAttachment(100);
+		comp_Page.setLayoutData(fd_comp_Page);
+		comp_p = (Composite) pageUtil_Cert.page(comp_Page);
+		GridLayout gd_comp_p = new GridLayout(7, false);
+		gd_comp_p.horizontalSpacing = 8;
+		comp_Page.setLayout(gd_comp_p);
+		controls_Page = comp_p.getChildren();
+
+		// 修改当前页
+		combo_currPage = (Combo) controls_Page[5];
+		GridData gridData = new GridData();
+		gridData.widthHint = 30;
+		gridData.heightHint = 25;
+		combo_currPage.setLayoutData(gridData);
+		combo_currPage.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert(combo_currPage.getText().trim());
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+		// lblBegin 第一页
+		controls_Page[0].addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseUp(MouseEvent e) {
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert("1");
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+		// lblBack 上一页
+		controls_Page[1].addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseUp(MouseEvent e) {
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert(String.valueOf(Integer.parseInt(curr_Page) - 1));
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+		// lblForward 下一页
+		controls_Page[2].addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseUp(MouseEvent e) {
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert(String.valueOf(Integer.parseInt(curr_Page) + 1));
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+		// lblEnd 最后一页
+		controls_Page[3].addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseUp(MouseEvent e) {
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					listCert(total_Page);
+					pageUtil_Cert.btn_Change(curr_Page, total_Page);
+				}
+			}
+		});
+	}
+
+	/**
+	 * RA管理
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:02
+	 * @version 1.0
+	 */
+	private void panel_RA(Composite compositeRA) {
+		comp_RA.setLayout(new FormLayout());
+
+		Group groupRA = new Group(compositeRA, SWT.NONE);
+		FormData fd_groupRA = new FormData();
+		fd_groupRA.bottom = new FormAttachment(0, 556);
+		fd_groupRA.right = new FormAttachment(0, 255);
+		fd_groupRA.top = new FormAttachment(0);
+		fd_groupRA.left = new FormAttachment(0);
+		groupRA.setLayoutData(fd_groupRA);
+		groupRA.setText(l.getString("list"));
+		groupRA.setLayout(new FormLayout());
+
+		treeRA = new Tree(groupRA, SWT.BORDER);
+		FormData fd_treeRA = new FormData();
+		fd_treeRA.top = new FormAttachment(0, 7);
+		fd_treeRA.right = new FormAttachment(0, 243);
+		fd_treeRA.left = new FormAttachment(0, 7);
+		treeRA.setLayoutData(fd_treeRA);
+
+		rootRA = new TreeItem(treeRA, SWT.NULL);
+		rootRA.setText("RA");
+		rootRA.setExpanded(false);
+
+		treeRA.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				//TreeItem[] item = treeRA.getSelection();
+				TreeItem ti = (TreeItem) e.item;
+				String name = ti.getText();
+				int n = countTreeLevel(rootRA, ti);
+				if (n != 0) {
+					g_adminName = name;
+					tableRA.removeAll();
+					List<String[]> ci = dataCertInfoRA.get(name);
+					for (String[] ss : ci) {
+						TableItem tci = new TableItem(tableRA, SWT.NULL);
+						tci.setText(ss);
+					}
+					txt_userName_RA.setText(name);
+					txt_tel_RA.setText(dataUserInfoRA.get(name)[0]);
+					txt_email_RA.setText(dataUserInfoRA.get(name)[1]);
+					txt_memo_RA.setText(dataUserInfoRA.get(name)[2]);
+					// ip白名单
+					String ip_str = dataUserInfoRA.get(name)[3];
+					
+					list_raIp.removeAll();
+					if (ip_str != null && ip_str.length() > 0) {
+						String[] ip_strs = ip_str.split(",");
+						for (String ip : ip_strs) {
+							ips.add(ip);
+							list_raIp.add(ip);
+						}
+					}
+					// 授权
+					getPermission(name);
+					showPermission("RA", name);
+				} else {
+					g_adminName = null;
+				}
+			}
+		});
+
+		Button btnNewRA = new Button(groupRA, SWT.NONE);
+		fd_treeRA.bottom = new FormAttachment(btnNewRA, -6);
+		btnNewRA.setText(l.getString("new"));
+		FormData fd_btnNewRA = new FormData();
+		fd_btnNewRA.bottom = new FormAttachment(100, -19);
+		fd_btnNewRA.right = new FormAttachment(100, -10);
+		fd_btnNewRA.top = new FormAttachment(0, 485);
+		fd_btnNewRA.left = new FormAttachment(0, 165);
+		btnNewRA.setLayoutData(fd_btnNewRA);
+		btnNewRA.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				Panel_NewRA panel_NewRA = new Panel_NewRA(self);
+				panel_NewRA.setBlockOnOpen(true);
+				panel_NewRA.open();
+			}
+		});
+
+		Group group_ra = new Group(compositeRA, SWT.NONE);
+		FormData fd_group_ra = new FormData();
+		fd_group_ra.bottom = new FormAttachment(0, 258);
+		fd_group_ra.right = new FormAttachment(0, 974);
+		fd_group_ra.top = new FormAttachment(0);
+		fd_group_ra.left = new FormAttachment(0, 261);
+		group_ra.setLayoutData(fd_group_ra);
+		group_ra.setText(l.getString("cert"));
+		group_ra.setLayout(new FormLayout());
+
+		tableRA = new Table(group_ra, SWT.BORDER | SWT.FULL_SELECTION);
+		FormData fd_tableRA = new FormData();
+		fd_tableRA.bottom = new FormAttachment(0, 231);
+		fd_tableRA.right = new FormAttachment(0, 683);
+		fd_tableRA.top = new FormAttachment(0, 9);
+		fd_tableRA.left = new FormAttachment(0, 7);
+		tableRA.setLayoutData(fd_tableRA);
+		tableRA.setHeaderVisible(true);
+		tableRA.setLinesVisible(true);
+
+		tableRA.addMouseListener(new MouseAdapter() {
+			public void mouseDown(MouseEvent me) {
+				if (me.button == 3) {
+					Menu menu = new Menu(tableRA);
+					tableRA.setMenu(menu);
+					MenuItem item = new MenuItem(menu, SWT.PUSH);
+					item.setText(l.getString("revokeCert"));
+					item.addListener(SWT.Selection, new Listener() {
+						public void handleEvent(Event event) {
+							MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+							mb.setMessage(l.getString("Notice_revokeCert"));
+							int r = mb.open();
+							if (SWT.YES == r) {
+								TableItem item = (TableItem) tableRA.getSelection()[0];
+								Properties p = new Properties();
+								p.setProperty(PropertiesKeysRes.ADMIN_CERT_SN, item.getText());
+								try {
+									Env.client.sendRequest("REVOKEBA", p);
+									refresh("RA");
+								} catch (ServerException se) {
+									log.errlog("Revoke RA fail", se);
+									mb = new MessageBox(getShell(), SWT.ERROR);
+									mb.setMessage(l.getString("Notice_fail_revokeCert") + "[" + se.getErrorNum()
+											+ "]:" + se.getErrorMsg());
+									mb.open();
+								} catch (Exception ee) {
+									log.errlog("Revoke RA fail", ee);
+									mb = new MessageBox(getShell(), SWT.ERROR);
+									mb.setMessage(l.getString("Notice_fail_revokeCert"));
+									mb.open();
+								}
+							}
+						}
+					});
+				}
+			}
+		});
+		TableColumn tblclmn_sn_ra = new TableColumn(tableRA, SWT.NONE);
+		tblclmn_sn_ra.setWidth(119);
+		tblclmn_sn_ra.setText(l.getString("SN"));
+
+		TableColumn tblclmn_dn_ra = new TableColumn(tableRA, SWT.NONE);
+		tblclmn_dn_ra.setWidth(293);
+		tblclmn_dn_ra.setText(l.getString("subject"));
+
+		TableColumn tblclmn_notAfter_ra = new TableColumn(tableRA, SWT.NONE);
+		tblclmn_notAfter_ra.setWidth(163);
+		tblclmn_notAfter_ra.setText(l.getString("validityDate"));
+
+		TableColumn tblclmn_state_ra = new TableColumn(tableRA, SWT.NONE);
+		tblclmn_state_ra.setWidth(88);
+		tblclmn_state_ra.setText(l.getString("status"));
+
+		Group group_2_ra = new Group(compositeRA, SWT.NONE);
+		FormData fd_group_2_ra = new FormData();
+		fd_group_2_ra.bottom = new FormAttachment(0, 556);
+		fd_group_2_ra.right = new FormAttachment(0, 974);
+		fd_group_2_ra.top = new FormAttachment(0, 264);
+		fd_group_2_ra.left = new FormAttachment(0, 261);
+		group_2_ra.setLayoutData(fd_group_2_ra);
+		group_2_ra.setText(l.getString("basicInfo"));
+
+		GridLayout gridL = new GridLayout(4, false);
+		gridL.marginTop = 10;
+		gridL.marginBottom = 10;
+		gridL.marginLeft = 20;
+		gridL.marginRight = 10;
+		gridL.verticalSpacing = 10;
+		group_2_ra.setLayout(gridL);
+
+		Label lbl_uname_ra = new Label(group_2_ra, SWT.NONE);
+		GridData gd_lbl_uname_ra = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lbl_uname_ra.widthHint = 73;
+		lbl_uname_ra.setLayoutData(gd_lbl_uname_ra);
+		lbl_uname_ra.setAlignment(SWT.RIGHT);
+		lbl_uname_ra.setText(l.getString("username") + ":");
+
+		txt_userName_RA = new Text(group_2_ra, SWT.BORDER | SWT.READ_ONLY);
+		GridData gd_txt_userName_RA = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_userName_RA.widthHint = 210;
+		txt_userName_RA.setLayoutData(gd_txt_userName_RA);
+		
+		Label lblNewLabel = new Label(group_2_ra, SWT.NONE);
+		GridData gd_lblNewLabel = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel.widthHint = 24;
+		lblNewLabel.setLayoutData(gd_lblNewLabel);
+		lblNewLabel.setText("");
+
+		
+		Group grpIpWhiteList = new Group(group_2_ra, SWT.NONE);
+		GridData gd_grpIpWhiteList = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 5);
+		gd_grpIpWhiteList.widthHint = 302;
+		gd_grpIpWhiteList.heightHint = 172;
+		grpIpWhiteList.setLayoutData(gd_grpIpWhiteList);
+		grpIpWhiteList.setText(l.getString("IPwhiteList"));
+
+		Label lbl_ip_ra = new Label(grpIpWhiteList, SWT.NONE);
+		lbl_ip_ra.setBounds(25, 25, 54, 17);
+		lbl_ip_ra.setAlignment(SWT.RIGHT);
+		lbl_ip_ra.setText(l.getString("IPwhiteList") + ":");
+
+		list_raIp = new org.eclipse.swt.widgets.List(grpIpWhiteList, SWT.BORDER | SWT.V_SCROLL);
+		list_raIp.setBounds(85, 21, 201, 93);
+
+		Label lbl_ip = new Label(grpIpWhiteList, SWT.NONE);
+		lbl_ip.setBounds(56, 123, 23, 17);
+		lbl_ip.setText("IP:");
+
+		text_IP = new Text(grpIpWhiteList, SWT.BORDER);
+		text_IP.setBounds(85, 120, 201, 23);
+		text_IP.setTextLimit(15);
+
+		Button btn_add = new Button(grpIpWhiteList, SWT.NONE);
+		btn_add.setBounds(121, 149, 72, 27);
+		btn_add.setText(l.getString("add"));
+		btn_add.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				String ip = text_IP.getText().trim();
+				if (!Utils.checkIp(ip)) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_IP"));
+					mb.open();
+					return;
+				}
+				if (!ips.contains(ip)) {
+					ips.add(ip);
+					list_raIp.add(ip);
+				} else {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_isExist_IP"));
+					mb.open();
+				}
+				text_IP.setText("");
+			}
+		});
+
+		Button btn_delete = new Button(grpIpWhiteList, SWT.NONE);
+		btn_delete.setBounds(206, 149, 80, 27);
+		btn_delete.setText(l.getString("delete"));
+		btn_delete.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				if (list_raIp.getSelectionIndex() == -1) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_not_chooseIP"));
+					mb.open();
+					return;
+				}
+				String ip = list_raIp.getSelection()[0];
+				ips.remove(ip);
+				list_raIp.remove(list_raIp.getSelectionIndex());
+			}
+		});
+
+		Label lbl_email_ra = new Label(group_2_ra, SWT.NONE);
+		lbl_email_ra.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_email_ra.setAlignment(SWT.RIGHT);
+		lbl_email_ra.setText(l.getString("email") + ":");
+
+		txt_email_RA = new Text(group_2_ra, SWT.BORDER);
+		GridData gd_txt_email_RA = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_email_RA.widthHint = 210;
+		txt_email_RA.setTextLimit(30);
+		txt_email_RA.setLayoutData(gd_txt_email_RA);
+		new Label(group_2_ra, SWT.NONE);
+
+		Label lbl_tel_ra = new Label(group_2_ra, SWT.NONE);
+		lbl_tel_ra.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_tel_ra.setAlignment(SWT.RIGHT);
+		lbl_tel_ra.setText(l.getString("phone") + ":");
+
+		txt_tel_RA = new Text(group_2_ra, SWT.BORDER);
+		GridData gd_txt_tel_RA = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_tel_RA.widthHint = 210;
+		txt_tel_RA.setTextLimit(20);
+		txt_tel_RA.setLayoutData(gd_txt_tel_RA);
+		new Label(group_2_ra, SWT.NONE);
+
+		Label lbl_memo_ra = new Label(group_2_ra, SWT.NONE);
+		lbl_memo_ra.setLayoutData(new GridData(SWT.RIGHT, SWT.TOP, false, false, 1, 1));
+		lbl_memo_ra.setAlignment(SWT.RIGHT);
+		lbl_memo_ra.setText(l.getString("memo") + ":");
+
+		txt_memo_RA = new Text(group_2_ra, SWT.BORDER | SWT.WRAP | SWT.V_SCROLL);
+		GridData gd_txt_memo_RA = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 2);
+		gd_txt_memo_RA.heightHint = 92;
+		gd_txt_memo_RA.widthHint = 192;
+		txt_memo_RA.setTextLimit(200);
+
+		txt_memo_RA.setLayoutData(gd_txt_memo_RA);
+		txt_memo_RA.setTextLimit(200);
+		new Label(group_2_ra, SWT.NONE);
+		new Label(group_2_ra, SWT.NONE);
+		new Label(group_2_ra, SWT.NONE);
+
+		new Label(group_2_ra, SWT.NONE);
+		new Label(group_2_ra, SWT.NONE);
+		new Label(group_2_ra, SWT.NONE);
+
+		Button btn_modify = new Button(group_2_ra, SWT.NONE);
+		btn_modify.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				Properties p = new Properties();
+				p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, txt_userName_RA.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_TELEPHONE, txt_tel_RA.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_EMAIL, txt_email_RA.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_REMARK, txt_memo_RA.getText().trim());
+				
+				StringBuffer sb = new StringBuffer();
+				for (String s : list_raIp.getItems()){
+					sb.append(s).append(",");
+				}
+				p.setProperty(PropertiesKeysRes.IP_LIST, sb.substring(0, sb.length() - 1));
+			
+				try {
+					Env.client.sendRequest("UPDATERA", p);
+					MessageBox mb = new MessageBox(getShell(), SWT.OK);
+					mb.setMessage(l.getString("Notice_succ_updateRA"));
+					mb.open();
+				} catch (ServerException se) {
+					log.errlog("Update RA fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_updateRA") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception e1) {
+					log.errlog("Update RA fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_updateRA"));
+					mb.open();
+				}
+			}
+		});
+		
+		GridData gd_btn_modify = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_modify.widthHint = 56;
+		btn_modify.setLayoutData(gd_btn_modify);
+		btn_modify.setText(l.getString("modify"));
+		
+		Group group_3_ra = new Group(compositeRA, SWT.NONE);
+		FormData fd_group_3_ra = new FormData();
+		fd_group_3_ra.bottom = new FormAttachment(0, 556);
+		fd_group_3_ra.right = new FormAttachment(0, 1212);
+		fd_group_3_ra.top = new FormAttachment(0);
+		fd_group_3_ra.left = new FormAttachment(0, 980);
+		group_3_ra.setLayoutData(fd_group_3_ra);
+		group_3_ra.setText(l.getString("grant"));
+
+		tree_op_ra = new Tree(group_3_ra, SWT.BORDER);
+		tree_op_ra.setBounds(10, 27, 212, 474);
+		trtm_opRootRA = new TreeItem(tree_op_ra, SWT.NONE);
+		trtm_opRootRA.setText(l.getString("operation_grant"));
+
+		tree_op_ra.addMouseListener(new MouseAdapter() {
+			public void mouseDown(MouseEvent me) {
+				if (me.button == 3) {
+					Menu menu = new Menu(tree_op_ra);
+					MenuItem add = new MenuItem(menu, SWT.PUSH);
+					add.setText(l.getString("add_grant"));
+					if (g_adminName == null) {
+						add.setEnabled(false);
+					}
+					add.addSelectionListener(new SelectionListener() {
+						@Override
+						public void widgetSelected(SelectionEvent arg0) {
+							String tmpName = null;
+							TreeItem node = tree_op_ra.getSelection()[0];
+							int n = countTreeLevel(trtm_opRootRA, node);
+							if (n == 2) { // 添加模板权限
+								tmpName = node.getParentItem().getText();
+							}
+							Panel_AddPermission pa = new Panel_AddPermission(tmpName);
+							pa.setBlockOnOpen(true);
+							int w = pa.open();
+							if (w == 0) {
+								String pa_tmpName = pa.selectedTempName;
+								String pa_basedn = pa.baseDN;
+								HashMap<String, HashSet<String>> perm = dataPermission.get(g_adminName);
+								if (perm.containsKey(pa_tmpName)) {
+									perm.get(pa_tmpName).add(pa_basedn);
+								} else {
+									HashSet<String> set = new HashSet<String>();
+									set.add(pa_basedn);
+									perm.put(pa_tmpName, set);
+								}
+								showPermission("RA", g_adminName);
+								btnSubmitPerm_ra.setEnabled(true);
+							}
+						}
+
+						@Override
+						public void widgetDefaultSelected(SelectionEvent arg0) {
+						}
+					});
+					MenuItem del = new MenuItem(menu, SWT.PUSH);
+					del.setText(l.getString("delete_grant"));
+					if (trtm_opRootRA.getItemCount() == 0) {
+						del.setEnabled(false);
+					}
+					del.addSelectionListener(new SelectionListener() {
+						@Override
+						public void widgetSelected(SelectionEvent arg0) {
+							TreeItem node = tree_op_ra.getSelection()[0];
+							int n = countTreeLevel(trtm_opRootRA, node);
+							HashMap<String, HashSet<String>> perm = dataPermission.get(g_adminName);
+							if (n == 2) {
+								HashSet<String> set = perm.get(node.getParentItem().getText());
+								set.remove(node.getText());
+								if (set.isEmpty())
+									perm.remove(node.getParentItem().getText());
+							} else if (n == 1) {
+								perm.remove(node.getText());
+							}
+							showPermission("RA", g_adminName);
+							btnSubmitPerm_ra.setEnabled(true);
+						}
+
+						@Override
+						public void widgetDefaultSelected(SelectionEvent arg0) {
+						}
+					});
+					tree_op_ra.setMenu(menu);
+				}
+			}
+		});
+		btnSubmitPerm_ra = new Button(group_3_ra, SWT.NONE);
+		btnSubmitPerm_ra.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					setPermission("RA");
+					btnSubmitPerm_ra.setEnabled(false);
+				}
+			}
+		});
+		btnSubmitPerm_ra.setEnabled(false);
+		btnSubmitPerm_ra.setBounds(148, 507, 74, 27);
+		btnSubmitPerm_ra.setText(l.getString("modify_submit"));
+	}
+
+	/**
+	 * 模板视图
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:03
+	 * @version 1.0
+	 */
+	private void panel_Template(Composite compTemplate) {
+		comp_Template.setLayout(new FormLayout());
+
+		Composite composite_1 = new Composite(compTemplate, SWT.NONE);
+		FormData fd_composite_1 = new FormData();
+		fd_composite_1.bottom = new FormAttachment(0, 129);
+		fd_composite_1.right = new FormAttachment(0, 1212);
+		fd_composite_1.top = new FormAttachment(0, 10);
+		fd_composite_1.left = new FormAttachment(0, 10);
+		composite_1.setLayoutData(fd_composite_1);
+
+		Group group_5 = new Group(composite_1, SWT.NONE);
+		group_5.setBounds(22, 10, 291, 99);
+		group_5.setText(l.getString("queryTemplate"));
+
+		Label lbl_templateName = new Label(group_5, SWT.NONE);
+		lbl_templateName.setBounds(10, 24, 66, 23);
+		lbl_templateName.setText(l.getString("templateName") + ":");
+
+		text_templateName = new Text(group_5, SWT.BORDER);
+		text_templateName.setBounds(82, 21, 146, 25);
+		text_templateName.setTextLimit(20);
+
+		// 查询模板
+		Button btn_queryTemplate = new Button(group_5, SWT.NONE);
+		btn_queryTemplate.setBounds(135, 61, 93, 28);
+		btn_queryTemplate.setText(l.getString("queryTemplate"));
+		btn_queryTemplate.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					queryTemplate();
+				}
+			}
+		});
+
+		Group group_4 = new Group(composite_1, SWT.NONE);
+		group_4.setText(l.getString("addTemplate"));
+		group_4.setBounds(360, 10, 219, 99);
+
+		Button btn_addTemp = new Button(group_4, SWT.NONE);
+		btn_addTemp.setBounds(65, 62, 133, 27);
+		btn_addTemp.setText(l.getString("addTemplate"));
+		btn_addTemp.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+
+					Panel_BasicTemplate panel_BasicTemp = new Panel_BasicTemplate();
+					panel_BasicTemp.setBlockOnOpen(true);
+					int w = panel_BasicTemp.open();
+					if (w == 0) {
+						panel_Template = new Panel_Template(panel_BasicTemp);
+						panel_Template.setBlockOnOpen(true);
+						panel_Template.open();
+						queryTemplate();
+					}
+				}
+			}
+		});
+
+		tableTemplate = new Table(compTemplate, SWT.BORDER | SWT.MULTI | SWT.FULL_SELECTION);
+		FormData fd_tableTemplate = new FormData();
+		fd_tableTemplate.top = new FormAttachment(0, 135);
+		fd_tableTemplate.right = new FormAttachment(100, -6);
+		fd_tableTemplate.bottom = new FormAttachment(0, 556);
+		fd_tableTemplate.left = new FormAttachment(0, 10);
+		tableTemplate.setLayoutData(fd_tableTemplate);
+		tableTemplate.setHeaderVisible(true);
+		tableTemplate.setLinesVisible(true);
+
+		final Menu menu_root = new Menu(tableTemplate);
+
+		MenuItem item_view = new MenuItem(menu_root, SWT.PUSH);
+		item_view.setText(l.getString("viewTemplate"));
+		MenuItem item_clone = new MenuItem(menu_root, SWT.PUSH);
+		item_clone.setText(l.getString("cloneTemplate"));
+		MenuItem item_modify = new MenuItem(menu_root, SWT.PUSH);
+		item_modify.setText(l.getString("modifyTemplate"));
+		MenuItem item_revoke = new MenuItem(menu_root, SWT.PUSH);
+		item_revoke.setText(l.getString("revokeTemplate"));
+		tableTemplate.setMenu(menu_root);
+		menu_root.addMenuListener(new MenuListener() {
+			@Override
+			public void menuHidden(MenuEvent e) {
+			}
+
+			@Override
+			public void menuShown(MenuEvent e) { // 如果是在使用模板，不让修改和作废
+				String isUsed = tableTemplate.getSelection()[0].getText(2);
+				if (l.getString("yes").equalsIgnoreCase(isUsed)) {
+					item_revoke.setEnabled(false);
+				} else {
+					item_revoke.setEnabled(true);
+				}
+			}
+		});
+		// 查看模板
+		item_view.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				panel_Template = new Panel_Template(tableTemplate.getSelection()[0].getText(1), "view");
+				panel_Template.open();
+			}
+		});
+		// 修改模板
+		item_modify.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				String isUsed = tableTemplate.getSelection()[0].getText(2);
+				if (l.getString("yes").equalsIgnoreCase(isUsed)) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+					mb.setMessage(l.getString("Notice_modifyTemplate"));
+					int w = mb.open();
+					if (w == 64) {
+						panel_Template = new Panel_Template(tableTemplate.getSelection()[0].getText(1), "modify_isUsed");
+						panel_Template.open();
+					}
+				} else {
+					panel_Template = new Panel_Template(tableTemplate.getSelection()[0].getText(1), "modify");
+					panel_Template.open();
+				}
+			}
+		});
+		// 克隆模板
+		item_clone.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				panel_Template = new Panel_Template(tableTemplate.getSelection()[0].getText(1), "clone");
+				panel_Template.open();
+			}
+		});
+		// 废除模板
+		item_revoke.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+				mb.setMessage(l.getString("Notice_revokeTemplate"));
+				int r = mb.open();
+				if (SWT.YES == r) {
+					TableItem item = (TableItem) tableTemplate.getSelection()[0];
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.TEMPLATENAME, item.getText(1));
+					p.setProperty(PropertiesKeysRes.TEMPLATENAME, item.getText(1));
+					try {
+						Env.client.sendRequest("REVOKETEMPLATE", p);
+						queryTemplate();
+
+					} catch (ServerException se) {
+						log.errlog("Revoke template fail", se);
+						mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_revokeTemplate") + "[" + se.getErrorNum() + "]:"
+								+ se.getErrorMsg());
+						mb.open();
+					} catch (Exception ee) {
+						log.errlog("Revoke template fail", ee);
+						mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_revokeTemplate"));
+						mb.open();
+					}
+				}
+			}
+		});
+
+		TableColumn tblclmnNewColumn_ = new TableColumn(tableTemplate, SWT.NONE);
+		tblclmnNewColumn_.setWidth(105);
+		tblclmnNewColumn_.setText(l.getString("SN"));
+
+		TableColumn tblclmnNewColumn = new TableColumn(tableTemplate, SWT.NONE);
+		tblclmnNewColumn.setWidth(153);
+		tblclmnNewColumn.setText(l.getString("templateName"));
+
+		TableColumn tblclmnNewColumn_1 = new TableColumn(tableTemplate, SWT.NONE);
+		tblclmnNewColumn_1.setWidth(118);
+		tblclmnNewColumn_1.setText(l.getString("isUsed"));
+
+		TableColumn tblclmnNewColumn_2 = new TableColumn(tableTemplate, SWT.NONE);
+		tblclmnNewColumn_2.setWidth(140);
+		tblclmnNewColumn_2.setText(l.getString("templateStatus"));
+
+		TableColumn tblclmnNewColumn_3 = new TableColumn(tableTemplate, SWT.NONE);
+		tblclmnNewColumn_3.setWidth(163);
+		tblclmnNewColumn_3.setText(l.getString("templateType"));
+
+	}
+
+	/**
+	 * 查询模板列表 & 查询指定模板
+	 * @Author 江岩
+	 * @Time 2019-07-02 11:00
+	 * @version 1.1  将分页查询修改为普通查询 
+	 */
+	private void queryTemplate() {
+
+		Properties p = new Properties();
+
+		p.setProperty(PropertiesKeysRes.TEMPLATENAME, text_templateName.getText().trim());
+
+		try {
+			Response resp = Env.client.sendRequest("QUERYTEMPLATELIST", p);
+			Properties[] rows = resp.getItemData();
+
+			tableTemplate.removeAll();
+			int n = 1;
+			for (Properties row : rows) {
+				TableItem ti = new TableItem(tableTemplate, SWT.NONE);
+				String isUsed = l.getString("no"), status = l.getString("revoke"),
+						type = l.getString("singleTemplate");
+				if ("1".equalsIgnoreCase(row.getProperty(PropertiesKeysRes.TEMPLATE_ISUSED))) {
+					isUsed = l.getString("yes");
+				}
+				if ("0".equalsIgnoreCase(row.getProperty(PropertiesKeysRes.TEMPLATE_STATUS))) {
+					status = l.getString("normal");
+				}
+				if ("1".equalsIgnoreCase(row.getProperty(PropertiesKeysRes.TEMPLATE_ISDUAL))) {
+					type = l.getString("doubleTemplate");
+				}
+				ti.setText(new String[] { String.valueOf(n++), row.getProperty(PropertiesKeysRes.TEMPLATENAME), isUsed,
+						status, type });
+
+			}
+
+		} catch (ServerException se) {
+			log.errlog("Query template fail");
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryTemplate") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query template fail");
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryTemplate"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 分页查询查询证书信息
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:04
+	 * @version 1.0
+	 */
+	private void listCert(String pageNum) {
+
+		String subjectName = txt_DN.getText().trim();
+		String certSN = txt_SN.getText().trim();
+		String userName = txt_user.getText().trim();
+		String templateName = combo_qryTmpl.getText();
+		if (subjectName == "" || subjectName.length() < 0) {
+			if (certSN == "" || certSN.length() < 0) {
+				if (userName == "" || userName.length() < 0) {
+					if (templateName == "" || templateName.length() < 0) {
+						MessageBox mBox = new MessageBox(getShell(), SWT.ICON_INFORMATION);
+						mBox.setMessage(l.getString("Notice_null_queryConditions"));
+						mBox.open();
+						return;
+					}
+				}
+			}
+		}
+
+		Properties p = new Properties();
+		p.setProperty(PropertiesKeysRes.PAGENUM, pageNum);
+		p.setProperty(PropertiesKeysRes.PAGESIZE, String.valueOf(pageSize));
+		p.setProperty(PropertiesKeysRes.CERTSN, txt_SN.getText().trim());
+		p.setProperty(PropertiesKeysRes.TEMPLATENAME, combo_qryTmpl.getText());
+		p.setProperty(PropertiesKeysRes.SUBJECTDN, txt_DN.getText().trim());
+
+		try {
+			String uuid = "";
+			String uName = txt_user.getText().trim();
+			if (uName.length() > 0) {
+				Properties pp = new Properties();
+				pp.setProperty(PropertiesKeysRes.USERNAME, uName);
+				Response respUuid = Env.client.sendRequest("SEARCHUSER", pp);
+				Properties[] pps = respUuid.getItemData();
+				if (pps.length == 0)
+					return;
+				uuid = pps[0].getProperty(PropertiesKeysRes.UUID);
+			}
+			p.setProperty(PropertiesKeysRes.UUID, uuid);
+
+			Response resp = Env.client.sendRequest("SEARCHCERT", p);
+			rows = resp.getItemData();
+			total_Page = resp.getP().getProperty(PropertiesKeysRes.TOTALPAGES);
+			curr_Page = pageNum;
+
+			table.removeAll();
+			int n = 1;
+			for (int i = 0; i < rows.length; i++) {
+				// 转换日期格式
+				String nb = rows[i].getProperty(PropertiesKeysRes.NOTBEFORE);
+				if (nb.length() > 0)
+					rows[i].setProperty(PropertiesKeysRes.NOTBEFORE, Utils.format(Utils.parse(nb)));
+				String na = rows[i].getProperty(PropertiesKeysRes.NOTAFTER);
+				if (na.length() > 0)
+					rows[i].setProperty(PropertiesKeysRes.NOTAFTER, Utils.format(Utils.parse(na)));
+
+				TableItem ti = new TableItem(table, SWT.NONE);
+				ti.setText(new String[] { String.valueOf((Integer.valueOf(pageNum) - 1) * pageSize + n++),
+						rows[i].getProperty(PropertiesKeysRes.USERNAME), rows[i].getProperty(PropertiesKeysRes.CERTSN),
+						rows[i].getProperty(PropertiesKeysRes.SUBJECTDN),
+						Utils.changeStatus(rows[i].getProperty(PropertiesKeysRes.CERTSTATUS)),
+						rows[i].getProperty(PropertiesKeysRes.NOTBEFORE),
+						rows[i].getProperty(PropertiesKeysRes.NOTAFTER),
+						rows[i].getProperty(PropertiesKeysRes.TEMPLATENAME) });
+			}
+
+		} catch (ServerException se) {
+			log.errlog("Query template fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryTemplate") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query template fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryTemplate"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 查询管理员 权限 
+	 * @param name
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:05
+	 * @version 1.0
+	 */
+	private void getPermission(String name) {
+		try {
+			Properties p = new Properties();
+			p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, name);
+			Response res = Env.client.sendRequest("GETPERMISSION", p);
+			String priviStr = res.getP().getProperty(PropertiesKeysRes.ADMIN_BO_POWERS);
+
+			SAXReader saxReader = new SAXReader();
+			Document doc = saxReader.read(new ByteArrayInputStream(priviStr.getBytes("UTF-8")));
+			Element root = doc.getRootElement();
+			List operations = root.elements();
+
+			if (dataPermission.containsKey((name))) {
+				dataPermission.get(name).clear();
+			} else {
+				dataPermission.put(name, new HashMap<String, HashSet<String>>());
+			}
+			if (operations != null) {
+				Iterator it = operations.iterator();
+				while (it.hasNext()) {
+					Element r = (Element) it.next();
+					if (r.elements() != null && r.elements().size() > 0) {
+						String template = r.elementTextTrim("certtype");
+						String basedn = r.elementTextTrim("basedn");
+						HashMap<String, HashSet<String>> perm = dataPermission.get(name);
+						if (!perm.containsKey(template))
+							perm.put(template, new HashSet<String>());
+						perm.get(template).add(basedn);
+					}
+				}
+			}
+		} catch (ServerException se) {
+			log.errlog("Query permission fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(
+					l.getString("Notice_fail_queryPermission") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query permission fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryPermission"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 给管理员授权
+	 * @param string
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:05
+	 * @version 1.0
+	 */
+	private void setPermission(String role) {
+		TreeItem ti = trtm_opRootRA;
+		StringBuffer sb = new StringBuffer(
+				"<permission><operations name =\"APPLYUSER,MODIFYUSER,MAKECACERTREQ,ADDTEMPLATE,UPDATETEMPLATE,DELETETEMPLATE,REVOKETEMPLATE,QUERYTEMPLATEDETAIL,QUERYTEMPLATELIST\"/>");
+
+		TreeItem[] templates = ti.getItems();
+		for (TreeItem t : templates) {
+			for (TreeItem b : t.getItems()) {
+				sb.append(
+						"<operations name=\"REQUESTCERT,GET2CODE,LOCKCERT,UNLOCKCERT,UPDATECERT,REVOKECERT,RECOVERENCCERTREQ\">")
+						.append("<certtype>").append(t.getText()).append("</certtype>").append("<basedn>")
+						.append(b.getText()).append("</basedn>").append("</operations>");
+			}
+		}
+		sb.append("</permission>");
+
+		Properties p = new Properties();
+		p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, g_adminName);
+		p.setProperty(PropertiesKeysRes.ADMIN_BO_POWERS, sb.toString());
+		try {
+			Env.client.sendRequest("PRIVILEGEBO", p);
+			MessageBox mb = new MessageBox(getShell());
+			mb.setMessage(l.getString("Notice_succ_grant"));
+			mb.open();
+		} catch (ServerException se) {
+			log.errlog("Grant RA fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_grant") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Grant RA fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_grant"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 查询管理员权限
+	 * @param (String,String)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:06
+	 * @version 1.0
+	 * @wait verify 注释了 BO 的内容，但还没有验证过
+	 */
+	private void showPermission(String role, String name) {
+		TreeItem root;
+		btnSubmitPerm_ra.setEnabled(false);
+		root = trtm_opRootRA;
+		root.removeAll();
+
+		if (dataPermission.containsKey(name)) {
+			HashMap<String, HashSet<String>> perm = dataPermission.get(name);
+			Set<String> templates = perm.keySet();
+			for (String t : templates) {
+				TreeItem ti = new TreeItem(root, SWT.NULL);
+				ti.setText(t);
+				for (String basedn : perm.get(t)) {
+					TreeItem tiBasedn = new TreeItem(ti, SWT.NULL);
+					tiBasedn.setText(basedn);
+				}
+			}
+		} else {
+			HashMap<String, HashSet<String>> perm = new HashMap<String, HashSet<String>>();
+			dataPermission.put(name, perm);
+		}
+	}
+
+	/**
+	 * 查询管理员列表
+	 * @param (String)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:10
+	 * @version 1.0
+	 * @todo 处理 RA 的内容
+	 * @wait verify 处理 RA 的内容
+	 */
+	private void getAdmins(String role) {
+		try {
+			HashMap<String, List<String[]>> tmpCI;
+			HashMap<String, String[]> tmpUI;
+			Properties prop = new Properties();
+			tmpCI = dataCertInfoRA;
+			tmpUI = dataUserInfoRA;
+			prop.setProperty(PropertiesKeysRes.ADMIN_ROLE, "RA");
+
+			Response res = Env.client.sendRequest("QUERYBOLIST", prop);
+			Properties[] ps = res.getItemData();
+			tmpCI.clear();
+			for (Properties p : ps) {
+				String name = p.getProperty(PropertiesKeysRes.ADMIN_USERNAME);
+				String sn = p.getProperty(PropertiesKeysRes.ADMIN_CERT_SN).toUpperCase();
+				String dn = p.getProperty(PropertiesKeysRes.ADMIN_CERT_SUBJECTDN);
+				String valid = p.getProperty(PropertiesKeysRes.ADMIN_VALIDATELEN);
+				String st = p.getProperty(PropertiesKeysRes.ADMIN_CERTSTATUS);
+				String tel = p.getProperty(PropertiesKeysRes.ADMIN_TELEPHONE);
+				String email = p.getProperty(PropertiesKeysRes.ADMIN_EMAIL);
+				String memo = p.getProperty(PropertiesKeysRes.ADMIN_REMARK);
+
+				String ips = p.getProperty(PropertiesKeysRes.IP_LIST, "");
+
+				String[] ci = new String[] { sn, dn, valid, Utils.changeStatus(st) };
+				if (!tmpCI.containsKey(name)) {
+					tmpCI.put(name, new ArrayList<String[]>());
+				}
+				tmpCI.get(name).add(ci);
+
+				if (!tmpUI.containsKey(name)) {
+					String[] ui = new String[] { tel, email, memo, ips };
+					tmpUI.put(name, ui);
+				}
+			}
+		} catch (ServerException se) {
+			log.errlog("Query RA list fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryRAList") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query RA list fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryRAList"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 刷新页面内容
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:12
+	 * @version 1.0
+	 */
+	void refresh(String role) {
+		if ("Cert".equals(role)) {
+			table.removeAll();
+			txt_DN.setText("");
+			txt_SN.setText("");
+			txt_user.setText("");
+			combo_qryTmpl.setText("");
+			curr_Page = "0";
+			total_Page = "0";
+			pageUtil_Cert.btn_Change("0", "0");
+		}
+		if ("RA".equals(role)) {
+			g_adminName = null;
+			getAdmins(role);
+			rootRA.removeAll();
+			for (String name : dataCertInfoRA.keySet()) {
+				TreeItem ti = new TreeItem(rootRA, SWT.NULL);
+				ti.setText(name);
+			}
+			tableRA.removeAll();
+			txt_userName_RA.setText("");
+			txt_tel_RA.setText("");
+			txt_email_RA.setText("");
+			txt_memo_RA.setText("");
+			list_raIp.removeAll();
+			trtm_opRootRA.removeAll();
+		}
+		if ("Template".equals(role)) {
+			tableTemplate.removeAll();
+			text_templateName.setText("");
+		}
+	}
+
+	/**
+	 * 计算Tree的某个节点到根的层级数
+	 * @param (TreeItem,TreeItem)
+	 * @return (int)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:12
+	 * @version 1.0
+	 */
+	private int countTreeLevel(TreeItem root, TreeItem it) {
+		int n = 0;
+		TreeItem tmp = it;
+		TreeItem p = tmp.getParentItem();
+		while (p != null) {
+			n += 1;
+			if (root.equals(p)) {
+				break;
+			} else {
+				p = p.getParentItem();
+			}
+		}
+		return n;
+	}
+
+	/**
+	 * 菜单栏
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:13
+	 * @version 1.0
+	 */
+	@Override
+	protected MenuManager createMenuManager() {
+		MenuManager mm = new MenuManager();
+
+		MenuManager menu = new MenuManager(l.getString("menu"));
+		menu.add(new genCSRAction());
+		menu.add(new Separator());
+		menu.add(new ExitAction());
+
+		mm.add(menu);
+		return mm;
+	}
+
+	/**
+	 * 申请证书事件
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:13
+	 */
+	class genCSRAction extends Action {
+		public genCSRAction() {
+			setText(l.getString("genCSR"));
+		}
+
+		public void run() {
+			Properties p = new Properties();
+			try {
+				Response resp = Env.client.sendRequest("GENCERTCSR", p);
+				Properties resp_p = resp.getP();
+				String csr = resp_p.getProperty(PropertiesKeysRes.CACERTCSR);
+				
+				FileDialog fd = new FileDialog(getShell(), SWT.SAVE);
+				fd.setFilterExtensions(new String[] { "*.csr" });
+				String f = fd.open();
+				if (f != null) {
+					byte[] bs = csr.getBytes();
+					FileOutputStream fos = new FileOutputStream(f);
+					fos.write(bs);
+					fos.close();
+					MessageBox mb = new MessageBox(getShell(), SWT.OK);
+					mb.setMessage(l.getString("Notice_succ_saveFile"));
+					mb.open();
+				}
+			} catch (Exception e) {
+				MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+				mb.setMessage(l.getString("Notice_fail_genCSR"));
+				mb.open();
+			}
+			
+		}
+	}
+	/**
+	 * 退出窗口事件
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:13
+	 */
+	class ExitAction extends Action {
+		public ExitAction() {
+			setText(l.getString("exit"));
+		}
+
+		public void run() {
+			handleShellCloseEvent(); 
+		}
+	}
+
+	/**
+	 * 视图标题栏命名
+	 * @param (Shell)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:15
+	 * @version 1.0
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("BO"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+	/**
+	 * 重写窗口关闭事件
+	 * @Description 释放占用的资源，并关闭视图
+	 * @Author 江岩
+	 * @Time 2019-06-04 19:58
+	 * @version 1.0
+	 */
+	@Override
+	protected void handleShellCloseEvent() {
+		int closeCode = -1;
+		if (!Env.validSession()) { // session超时
+			MessageBox mb = new MessageBox(getShell());
+			mb.setMessage(l.getString("Notice_invalidSession"));
+			mb.open();
+			closeCode = SWT.YES;
+		} else {
+			MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+			mb.setMessage(l.getString("Notice_exit") + "?");
+			closeCode = mb.open();
+		}
+		if (closeCode == SWT.YES) {
+			MessageBox mb = new MessageBox(getShell(), SWT.ICON_INFORMATION);
+			mb.setMessage(l.getString("Notice_removeCert"));
+			mb.open();
+			super.handleShellCloseEvent();
+		}
+	}
+}

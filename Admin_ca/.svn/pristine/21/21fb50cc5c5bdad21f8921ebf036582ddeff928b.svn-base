@@ -1,0 +1,236 @@
+package cn.com.infosec.netcert.caAdmin.utils;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.ResourceBundle;
+
+import cn.com.infosec.netcert.framework.crypto.impl.ukey.UsbKeySKFImpl;
+import cn.com.infosec.netcert.framework.transport.chanel.ChannelConf;
+import cn.com.infosec.netcert.framework.transport.chanel.ChannelSecure;
+import cn.com.infosec.netcert.framework.transport.chanel.ChannelSign;
+
+
+/**
+ * 客户端的核心配置信息
+ * @Author 江岩    
+ * @Time 2019-06-04 21:04
+ */
+public class Env {
+	private static boolean inited = false; //没获取环境配置前，不允许连接ca的操作
+	public static final String keyConfigFile = "key.cfg", ConfigFile = "caadmin.cfg";
+	public static ResourceBundle language;
+
+
+	public static enum ALG {
+		RSA, SM2
+	};
+
+	public static ALG alg; //ca的算法类别
+
+	public static String host, caCerFile;
+	public static int port, timeout;
+	public static boolean isSSL = false;
+
+	private static ChannelConf channelConf;
+	private static ChannelSecure channelSecure;
+	public static AdminClient client;
+	public static String issuerDN;
+	public static Map<String, UsbKeySKFImpl> map = new HashMap<String, UsbKeySKFImpl>();
+
+	private static Locale locale = Locale.CHINA;
+	private static long lastOperationTime = new Date().getTime();
+	private static long validTime = 30 * 60 * 1000L; // 30分钟
+	private static boolean IS_USER_AUTH_BY_CA = true;
+
+	// CA 管理用户时，需要通过 用户名查询是否存在，通过APPLYUSER 申请 uuid，最后通过uuid申请两码
+	// RA 管理用户，直接使用 用户名申请 两码
+	public static enum RETURNTYPE {
+		CERT, P7CERT
+	}; // DownUserCert 
+
+	public static enum RETSYMALG {
+		SM4, RC4
+	}; // DownUserCert
+
+	/**
+	 * 使用 CA配置信息，对 Env 的属性做初始化操作    
+	 * @throws   (Exception)
+	 * @Author 江岩 
+	 * @Time   2019-06-05 10:00
+	 * @version 1.0
+	 */
+	public static void initCAConfig() throws Exception {
+		File f = new File(ConfigFile);
+		if (!f.exists()) {
+			f.createNewFile();
+			Properties p = new Properties();
+			p.setProperty("host", "");
+			p.setProperty("port", "");
+			p.setProperty("timeout", "");
+			p.setProperty("useSSL", "false");
+			p.setProperty("caCer", "");
+			FileOutputStream os = new FileOutputStream(f);
+			p.store(os, null);
+			os.close();
+			Env.alg = ALG.SM2;
+		} else {
+			Properties pro = Env.getProperties(f);
+			host = pro.getProperty("host");
+			if(host == null || host.length() == 0) {
+				Env.alg = ALG.SM2;
+				return;
+			}
+			port = Integer.parseInt(pro.getProperty("port"));
+			timeout = Integer.parseInt(pro.getProperty("timeout"));
+			String caCer = pro.getProperty("caCer");
+			if (caCer != null && caCer.length() > 0) {
+				File fca = new File(caCer);
+				if (fca.exists()) {
+					FileInputStream fin = new FileInputStream(caCer);
+					CertificateFactory cf = CertificateFactory.getInstance("X.509", "INFOSEC");
+					X509Certificate trustCert = (X509Certificate) cf.generateCertificate(fin);
+	
+					fin.close();
+					caCerFile = caCer;
+					if ("RSA".equalsIgnoreCase(trustCert.getPublicKey().getAlgorithm())) {
+						alg = ALG.RSA;
+					} else {
+						alg = ALG.SM2;
+					}
+					isSSL = Boolean.valueOf(pro.getProperty("useSSL"));
+					if (isSSL) {
+						channelSecure = new ChannelSecure("ssl_pool");
+						channelSecure.setConf(ChannelSecure.ALG, alg.name());
+						channelSecure.setConf(ChannelSecure.SSL_TrustStore, caCerFile);
+					} else {
+						channelSecure = new ChannelSecure("plain_pool");
+					}
+					channelConf = new ChannelConf(host, port, 0, 10, timeout); // 超时时间
+					channelConf.setMaxConnection(1);
+					issuerDN = trustCert.getIssuerDN().getName();
+					inited = true;
+				}
+			}
+		}
+	}
+	
+	/**
+	 *  判断系统是否是 window 
+	 * @return  (boolean)      
+	 * @Author 江岩 
+	 * @Time   2019-06-05 09:56
+	 * @version 1.0
+	 */
+	public static boolean isWindows() {
+		return System.getProperty("os.name").toLowerCase().startsWith("windows");
+	}
+
+	/**
+	 * 判断 是否完成初始化
+	 * @return   (boolean)     
+	 * @Author 江岩 
+	 * @Time   2019-06-05 10:03
+	 * @version 1.0
+	 */
+	public static boolean isInited() {
+		return inited;
+	}
+
+	/**
+	 *  new 一个 AdminClient，并返回该对象
+	 * @param    (ChannelSign,String)
+	 * @return   (AdminClient)     
+	 * @throws   (Exception)
+	 * @Author 江岩 
+	 * @Time   2019-06-05 10:01
+	 * @version 1.0
+	 */
+	public static AdminClient getClient(ChannelSign chSign) throws Exception {
+		client = new AdminClient(chSign, channelSecure, "XML", channelConf);
+		return client;
+	}
+
+	// 用户管理的设置
+	public static void set_IS_USER_AUTH_BY_CA(String user_manageByCA) {
+		if ("true".equals(user_manageByCA)) {
+			IS_USER_AUTH_BY_CA = true;
+		} else {
+			IS_USER_AUTH_BY_CA = false;
+		}
+	}
+
+	public static boolean IS_USER_AUTH_BY_CA() {
+		return IS_USER_AUTH_BY_CA;
+	}
+
+	/**
+	 *  记录按钮的最后操作时间
+	 * @Author 江岩 
+	 * @Time   2019-06-05 10:04
+	 * @version 1.0
+	 */
+	public static void lastOperationTime() {
+		lastOperationTime = new Date().getTime();
+	}
+
+	/**
+	 *   判断 session 是否可用
+	 * @Description  30分钟失效，可用返回 true
+	 * @return   (boolean)     
+	 * @Author 江岩 
+	 * @Time   2019-06-05 10:05
+	 * @version 1.0
+	 */
+	public static boolean validSession() {
+		if (new Date().getTime() - lastOperationTime > validTime) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	/**
+	 *  获取语言资源包对象   
+	 * @return  (ResourceBundle)       
+	 * @Author 江岩 
+	 * @Time   2019-06-04 21:05
+	 * @version 1.0
+	 */
+	public static ResourceBundle getLanguage() {
+		return ResourceBundle.getBundle("cn.com.infosec.netcert.caAdmin.ui.resource.language", locale);
+	}
+
+	/**
+	 * 加载 配置文件 支持 .properties/.cfg 
+	 * @Author 江岩 
+	 * @Time   2019-07-30 20:57
+	 * @version 1.0
+	 */
+	public static Properties getProperties(File file) throws IOException {
+		Properties pro = new Properties();
+		FileInputStream in = new FileInputStream(file);
+		pro.load(in);
+		in.close();
+		return pro;
+	}
+
+	/**
+	 * 获取所有使用的key对象
+	 * @return   (Map)     
+	 * @Author 江岩 
+	 * @Time   2019-06-05 09:52
+	 * @version 1.0
+	 */
+	public static Map<String, UsbKeySKFImpl> getMap() {
+		return map;
+	}
+}

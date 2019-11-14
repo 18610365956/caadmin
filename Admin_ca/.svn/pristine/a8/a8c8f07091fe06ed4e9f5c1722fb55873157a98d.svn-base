@@ -1,0 +1,286 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.io.FileWriter;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.ResourceBundle;
+
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+
+/**
+ * 申请证书
+ * @Author 江岩
+ * @Time 2019-06-04 20:55
+ */
+public class Panel_ReqCert extends ApplicationWindow {
+	private Text txt_uname;
+	private Text txt_subjectDN;
+	private Combo combo_tmplName, validUnit;
+	private Spinner valid;
+	private Map<String, List<String>> templateListMap;
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private static ResourceBundle l = Env.getLanguage();
+	
+	// 申请证书
+	public Panel_ReqCert(Map<String, List<String>> templateListMap) {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.APPLICATION_MODAL);
+		this.templateListMap = templateListMap;
+	}
+
+	/**
+	 * 视图页面绘画
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:56
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+
+		GridLayout gridLayout = new GridLayout(4, false);
+		gridLayout.marginTop = 20;
+		gridLayout.marginBottom = 35;
+		gridLayout.marginLeft = 5;
+		gridLayout.marginRight = 50;
+		gridLayout.verticalSpacing = 15;
+		container.setLayout(gridLayout);
+
+		Label lblNewLabel = new Label(container, SWT.NONE);
+		GridData gd_lblNewLabel = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel.widthHint = 74;
+		lblNewLabel.setLayoutData(gd_lblNewLabel);
+		lblNewLabel.setAlignment(SWT.RIGHT);
+		lblNewLabel.setText(l.getString("username") + ":");
+
+		txt_uname = new Text(container, SWT.BORDER);
+		GridData gd_txt_uname = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_uname.widthHint = 163;
+		txt_uname.setTextLimit(20);
+		txt_uname.setLayoutData(gd_txt_uname);
+
+		Label label = new Label(container, SWT.NONE);
+		GridData gd_label = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_label.widthHint = 14;
+		label.setLayoutData(gd_label);
+		label.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		label.setText("*");
+
+		Label lbl_template = new Label(container, SWT.NONE);
+		lbl_template.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_template.setAlignment(SWT.RIGHT);
+		lbl_template.setText(l.getString("templateName") + ":");
+
+		combo_tmplName = new Combo(container, SWT.READ_ONLY);
+		GridData gd_combo_tmpl = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_combo_tmpl.widthHint = 146;
+		combo_tmplName.setLayoutData(gd_combo_tmpl);
+		final Label lbl_notice = new Label(container, SWT.NONE);
+		lbl_notice.setImage(new Image(getShell().getDisplay(), "res/tip.png"));
+		
+		for (String s : templateListMap.keySet()) {
+			combo_tmplName.add((String) s);
+		}
+		if (combo_tmplName.getItemCount() != 0){
+			combo_tmplName.select(0);
+			StringBuffer sb = new StringBuffer();
+			List<String> list = templateListMap.get(combo_tmplName.getText().trim());
+			for(int i = 0; i < list.size(); i++){
+				sb.append(list.get(i) + Utils.newLine);
+			}
+			String notice = l.getString("Notice_SupportBaseDN") +":"+ Utils.newLine + sb.toString();
+			lbl_notice.setToolTipText(notice);
+		}
+		
+		combo_tmplName.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				StringBuffer sb = new StringBuffer();
+				List<String> list = templateListMap.get(combo_tmplName.getText().trim());
+				for(int i = 0; i < list.size(); i++){
+					sb.append(list.get(i) + Utils.newLine);
+				}
+				String notice = l.getString("Notice_SupportBaseDN") +":"+ Utils.newLine + sb.toString();
+				lbl_notice.setToolTipText(notice);
+			}
+		});	
+		Label lbl_subject = new Label(container, SWT.NONE);
+		lbl_subject.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_subject.setAlignment(SWT.RIGHT);
+		lbl_subject.setText(l.getString("subject") + ":");
+
+		txt_subjectDN = new Text(container, SWT.BORDER);
+		GridData gd_txt_dn = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_dn.widthHint = 158;
+		txt_subjectDN.setTextLimit(100);
+		txt_subjectDN.setLayoutData(gd_txt_dn);
+
+		Label label_1 = new Label(container, SWT.NONE);
+		GridData gd_label_1 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_label_1.widthHint = 14;
+		label_1.setLayoutData(gd_label_1);
+		label_1.setText("*");
+		label_1.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+
+		Label lbl_valid = new Label(container, SWT.NONE);
+		lbl_valid.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_valid.setAlignment(SWT.RIGHT);
+		lbl_valid.setText(l.getString("validityDate") + ":");
+
+		valid = new Spinner(container, SWT.BORDER | SWT.READ_ONLY);
+		GridData gd_valid = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_valid.widthHint = 48;
+		valid.setLayoutData(gd_valid);
+		valid.setMaximum(99);
+		valid.setMinimum(1);
+
+		validUnit = new Combo(container, SWT.READ_ONLY);
+		GridData gd_validUnit = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_validUnit.widthHint = 45;
+		validUnit.setLayoutData(gd_validUnit);
+		validUnit.add(l.getString("day"));
+		validUnit.add(l.getString("month"));
+		validUnit.add(l.getString("year"));
+		validUnit.select(2);
+		new Label(container, SWT.NONE);
+		new Label(container, SWT.NONE);
+
+		Button btnReqCert = new Button(container, SWT.NONE);
+		GridData gd_btnReqCert = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 2, 1);
+		gd_btnReqCert.widthHint = 88;
+		btnReqCert.setLayoutData(gd_btnReqCert);
+		btnReqCert.setText(l.getString("op_applyCert"));
+		btnReqCert.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				String name = txt_uname.getText().trim();
+				String subjectDN = txt_subjectDN.getText().trim();
+				if (name == null || name.length() == 0) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_null_username"));
+					mb.open();
+					return;
+				}
+				if (subjectDN == null || subjectDN.length() == 0) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_null_subject"));
+					mb.open();
+					return;
+				}
+				if (!(subjectDN.startsWith("cn=") || subjectDN.startsWith("CN="))) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_subject"));
+					mb.open();
+					return;
+				}
+				String uuid;
+				try {
+					Properties p = new Properties();
+					Response resp = null;
+					if (Env.IS_USER_AUTH_BY_CA()) { 
+						p.setProperty(PropertiesKeysRes.USERNAME, name);
+						resp = Env.client.sendRequest("SEARCHUSER", p);
+						Properties[] ps = resp.getItemData();
+						if (ps.length == 0) {
+							p.clear();
+							p.setProperty(PropertiesKeysRes.USERNAME, name);
+							resp = Env.client.sendRequest("APPLYUSER", p);
+							uuid = resp.getP().getProperty(PropertiesKeysRes.UUID);
+						} else {
+							uuid = ps[0].getProperty(PropertiesKeysRes.UUID);
+						}
+					} else {
+						uuid = name;
+					}
+					p.clear();
+					p.setProperty(PropertiesKeysRes.UUID, uuid);
+					p.setProperty(PropertiesKeysRes.TEMPLATENAME, combo_tmplName.getText());
+					p.setProperty(PropertiesKeysRes.SUBJECTDN, subjectDN);
+					p.setProperty(PropertiesKeysRes.VALIDITYLEN, valid.getText());
+
+					switch (validUnit.getSelectionIndex()) {
+					case 0:
+						p.setProperty(PropertiesKeysRes.VALIDITYLEN_UNIT, "d");
+						break;
+					case 1:
+						p.setProperty(PropertiesKeysRes.VALIDITYLEN_UNIT, "m");
+						break;
+					case 2:
+						p.setProperty(PropertiesKeysRes.VALIDITYLEN_UNIT, "y");
+						break;
+					}
+					resp = Env.client.sendRequest("REQUESTCERT", p);
+					String ref = resp.getP().getProperty(PropertiesKeysRes.REFNO);
+					String auth = resp.getP().getProperty(PropertiesKeysRes.AUTHCODE);
+
+					FileDialog fd = new FileDialog(getShell(), SWT.SAVE);
+					fd.setFilterExtensions(new String[] { "*.txt" });
+					String f = fd.open();
+					if (f != null) {
+						FileWriter fw = new FileWriter(f);
+						fw.write(l.getString("refno") + ":" + ref + Utils.newLine);
+						fw.write(l.getString("authcode") + ":" + auth);
+						fw.close();
+					}
+					close();
+				} catch (ServerException se) {
+					log.errlog("Request cert fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_applyCert") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception ee) {
+					log.errlog("Request cert fail", ee);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_applyCert"));
+					mb.open();
+				}
+
+			}
+		});
+		new Label(container, SWT.NONE);
+		return container;
+	}
+
+	/**
+	 * 视图标题栏命名
+	 * 
+	 * @param (Shell)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:56
+	 * @version 1.0
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("applyCert"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+}

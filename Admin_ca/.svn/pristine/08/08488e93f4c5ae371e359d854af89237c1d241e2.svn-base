@@ -1,0 +1,256 @@
+package cn.com.infosec.netcert.caAdmin.ui.template.nextSubmit.encry;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+
+import cn.com.infosec.netcert.caAdmin.ui.template.templateUtils.Extension;
+import cn.com.infosec.netcert.caAdmin.ui.template.templateUtils.ExtensionEntry;
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+
+public class Panel_incrementalCRL_enc extends ApplicationWindow {
+
+	private Table table_261_i_enc;
+	private Text text_basicPub_i_enc;
+	private Combo combo_CRLType_i_enc;
+	private Button btn_add_261_i_enc, btn_delete_262_i_enc, btn_addDN_i_enc;
+
+	private static ResourceBundle l = Env.getLanguage();
+
+	/**
+	 * Create the application window.
+	 */
+	public Panel_incrementalCRL_enc() {
+		super(null);
+		addToolBar(SWT.FLAT | SWT.WRAP);
+	}
+
+	// 封装增量CRL设置信息
+	public Extension packageTempInfo() {
+
+		TableItem[] items_26_i = table_261_i_enc.getItems();
+		if (items_26_i.length > 0) {
+			Extension ex_CRLPub_i = new Extension();
+			List<ExtensionEntry> exList_CRLPub = new ArrayList<ExtensionEntry>();
+			for (TableItem item : items_26_i) {
+				ExtensionEntry entry_CRLPub = new ExtensionEntry();
+				entry_CRLPub.setName(item.getText(0));
+				if (l.getString("true").equalsIgnoreCase(item.getText(1))) {
+					entry_CRLPub.setAppendbasedn("true");
+				} else {
+					entry_CRLPub.setAppendbasedn("false");
+				}
+				entry_CRLPub.setValue(item.getText(2));
+				exList_CRLPub.add(entry_CRLPub);
+			}
+			ex_CRLPub_i.setOID("2.5.29.46");
+			ex_CRLPub_i.setIscritical(false);
+			ex_CRLPub_i.setExtensionEntrys(exList_CRLPub);
+			return ex_CRLPub_i;
+		} else {
+			return null;
+		}
+	}
+
+	// 加载密钥用法
+	public void loadCertTemplateInfo(Extension stand) {
+		List<ExtensionEntry> exList_i = stand.getExtensionEntrys();
+		for (ExtensionEntry ex : exList_i) {
+			TableItem item = new TableItem(table_261_i_enc, SWT.NONE);
+			String isAddDN = "";
+			if ("true".equalsIgnoreCase(ex.getAppendbasedn())) {
+				isAddDN = l.getString("true");
+			} else {
+				isAddDN = l.getString("false");
+			}
+			item.setText(new String[] { ex.getName(), isAddDN, ex.getValue() });
+		}
+	}
+
+	// 增量CRL视图
+	protected void panel_incrementalCRL_enc(Composite composite_26_i) {
+
+		Group group_261 = new Group(composite_26_i, SWT.NONE);
+		GridData gd_group_261 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_group_261.heightHint = 493;
+		gd_group_261.widthHint = 500;
+		group_261.setLayoutData(gd_group_261);
+		group_261.setBounds(0, 0, 480, 412);
+		group_261.setText(l.getString("incrementalCRL"));
+
+		GridLayout gl_group_261 = new GridLayout(4, false);
+		gl_group_261.marginTop = 10;
+		gl_group_261.marginBottom = 10;
+		gl_group_261.marginLeft = 10;
+		gl_group_261.marginHeight = 10;
+		gl_group_261.horizontalSpacing = 10;
+		gl_group_261.verticalSpacing = 10;
+
+		group_261.setLayout(gl_group_261);
+
+		Label lbl_type = new Label(group_261, SWT.NONE);
+		GridData gd_lbl_type = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lbl_type.widthHint = 42;
+		lbl_type.setLayoutData(gd_lbl_type);
+		lbl_type.setText(l.getString("type") + "：");
+
+		combo_CRLType_i_enc = new Combo(group_261, SWT.NONE);
+		GridData gd_combo_CRLType = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_combo_CRLType.widthHint = 65;
+		combo_CRLType_i_enc.setLayoutData(gd_combo_CRLType);
+		combo_CRLType_i_enc.add("DIR");
+		combo_CRLType_i_enc.add("URI");
+		combo_CRLType_i_enc.setText("DIR");
+
+		btn_addDN_i_enc = new Button(group_261, SWT.CHECK);
+		GridData gd_btn_addDN = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_addDN.widthHint = 175;
+		btn_addDN_i_enc.setLayoutData(gd_btn_addDN);
+		btn_addDN_i_enc.setText(l.getString("addSystemDN"));
+		new Label(group_261, SWT.NONE);
+
+		Label lbl_basicPublish = new Label(group_261, SWT.NONE);
+		lbl_basicPublish.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
+		lbl_basicPublish.setText(l.getString("basicPublishPoint") + "：");
+
+		text_basicPub_i_enc = new Text(group_261, SWT.BORDER);
+		GridData gd_text_basicPub = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_text_basicPub.widthHint = 186;
+		text_basicPub_i_enc.setLayoutData(gd_text_basicPub);
+
+		btn_add_261_i_enc = new Button(group_261, SWT.NONE);
+		GridData gd_btn_add_261 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_add_261.widthHint = 74;
+		btn_add_261_i_enc.setLayoutData(gd_btn_add_261);
+		btn_add_261_i_enc.setText(l.getString("add"));
+		btn_add_261_i_enc.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				String basic_Pub = text_basicPub_i_enc.getText().trim();
+				if (basic_Pub == null || basic_Pub.length() == 0) {
+					MessageBox messageBox = new MessageBox(composite_26_i.getShell(), SWT.ERROR);
+					messageBox.setMessage(l.getString("Notice_null_basicPublishPoint"));
+					messageBox.open();
+					return;
+				}
+				TableItem it = new TableItem(table_261_i_enc, SWT.NONE);
+				String s = l.getString("false");
+				if (btn_addDN_i_enc.getSelection()) {
+					s = l.getString("true");
+				}
+				it.setText(new String[] { combo_CRLType_i_enc.getText(), s, text_basicPub_i_enc.getText(), });
+			}
+		});
+		new Label(group_261, SWT.NONE);
+		new Label(group_261, SWT.NONE);
+		new Label(group_261, SWT.NONE);
+		new Label(group_261, SWT.NONE);
+
+		table_261_i_enc = new Table(group_261, SWT.BORDER | SWT.FULL_SELECTION);
+		GridData gd_table_261 = new GridData(SWT.LEFT, SWT.CENTER, false, false, 4, 1);
+		gd_table_261.widthHint = 446;
+		gd_table_261.heightHint = 198;
+		table_261_i_enc.setLayoutData(gd_table_261);
+		table_261_i_enc.setHeaderVisible(true);
+		table_261_i_enc.setLinesVisible(true);
+
+		TableColumn tblclmnNewColumn = new TableColumn(table_261_i_enc, SWT.NONE);
+		tblclmnNewColumn.setWidth(84);
+		tblclmnNewColumn.setText(l.getString("type"));
+
+		TableColumn tblclmnNewColumn_1 = new TableColumn(table_261_i_enc, SWT.NONE);
+		tblclmnNewColumn_1.setWidth(146);
+		tblclmnNewColumn_1.setText(l.getString("addSystemDN"));
+
+		TableColumn tblclmnNewColumn_2 = new TableColumn(table_261_i_enc, SWT.NONE);
+		tblclmnNewColumn_2.setWidth(171);
+		tblclmnNewColumn_2.setText(l.getString("basicPublishPoint"));
+		new Label(group_261, SWT.NONE);
+		new Label(group_261, SWT.NONE);
+		new Label(group_261, SWT.NONE);
+
+		btn_delete_262_i_enc = new Button(group_261, SWT.NONE);
+		GridData gd_btn_delete_262 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_delete_262.widthHint = 73;
+		btn_delete_262_i_enc.setLayoutData(gd_btn_delete_262);
+		btn_delete_262_i_enc.setText(l.getString("delete"));
+		btn_delete_262_i_enc.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				if (table_261_i_enc.getSelection().length == -1) {
+					MessageBox messageBox = new MessageBox(composite_26_i.getShell(), SWT.NONE);
+					messageBox.setMessage(l.getString("Notice_not_chooseCRL"));
+					messageBox.open();
+					return;
+				}
+				table_261_i_enc.remove(table_261_i_enc.getSelectionIndex());
+			}
+		});
+	}
+
+	@Override
+	protected Control createContents(Composite parent) {
+
+		Composite container = new Composite(parent, SWT.NONE);
+		GridLayout gl_composite = new GridLayout(1, false);
+		container.setLayout(gl_composite);
+
+		this.panel_incrementalCRL_enc(container);
+
+		return container;
+
+	}
+
+	/**
+	 * Launch the application.
+	 * @param args
+	 */
+	public static void main(String args[]) {
+		try {
+			Panel_incrementalCRL_enc window = new Panel_incrementalCRL_enc();
+			window.setBlockOnOpen(true);
+			window.open();
+			Display.getCurrent().dispose();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * Configure the shell.
+	 * @param newShell
+	 */
+	@Override
+	protected void configureShell(Shell newShell) {
+		super.configureShell(newShell);
+		newShell.setText("New Application");
+	}
+
+	/**
+	 * Return the initial size of the window.
+	 */
+	@Override
+	protected Point getInitialSize() {
+		return new Point(615, 677);
+	}
+
+}

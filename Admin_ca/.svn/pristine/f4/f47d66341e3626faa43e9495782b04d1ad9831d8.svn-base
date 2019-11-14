@@ -1,0 +1,141 @@
+package cn.com.infosec.netcert.caAdmin.ui.template;
+
+import java.util.ResourceBundle;
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Text;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+
+import org.eclipse.swt.layout.GridData;
+
+/**
+ * 添加 CRL发布点
+ * @Author 江岩    
+ * @Time 2019-06-06 14:17
+ */
+public class Add_CRLPublicPoint extends ApplicationWindow {
+	private Text text;
+	private static ResourceBundle l = Env.getLanguage();
+	/**
+	 * 构造方法
+	 */
+	public Add_CRLPublicPoint() {
+		super(null);
+	}
+
+	/**
+	 * 视图页面绘画  
+	 * @Author 江岩      
+	 * @Time 2019-06-06 14:17
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+		GridLayout gridLayout = new GridLayout(3,false);
+		gridLayout.marginBottom = 50;
+		gridLayout.marginLeft = 30;
+		gridLayout.marginTop = 30;
+		gridLayout.verticalSpacing = 15;
+		gridLayout.marginRight = 40;
+		container.setLayout(gridLayout);
+		
+		Label lbl_type = new Label(container, SWT.NONE);
+		GridData gd_lbl_type = new GridData(SWT.RIGHT);
+		gd_lbl_type.horizontalAlignment = SWT.RIGHT;
+		lbl_type.setLayoutData(gd_lbl_type);
+		lbl_type.setText(l.getString("type") + "：");
+		
+		Combo combo = new Combo(container, SWT.NONE);
+		GridData gd_combo = new GridData(SWT.LEFT);
+		gd_combo.widthHint = 80;
+		combo.setLayoutData(gd_combo);
+		combo.add("DIR");
+		combo.add("URI");
+		combo.setText("DIR");
+		
+		Button btnCheckButton = new Button(container, SWT.CHECK);
+		GridData gd_btnCheckButton = new GridData(SWT.LEFT);
+		gd_btnCheckButton.horizontalAlignment = SWT.RIGHT;
+		gd_btnCheckButton.widthHint = 176;
+		btnCheckButton.setLayoutData(gd_btnCheckButton);
+		btnCheckButton.setText(l.getString("addSystemDN"));
+		
+		Label lbl_basicPublish = new Label(container, SWT.NONE);
+		lbl_basicPublish.setLayoutData(new GridData(SWT.RIGHT));
+		lbl_basicPublish.setText(l.getString("basicPublishPoint")+"：");
+		
+		text = new Text(container, SWT.BORDER);
+		GridData gridData = new GridData();
+		gridData.widthHint = 266;
+		gridData.horizontalSpan =2;
+		text.setLayoutData(gridData);
+		new Label(container, SWT.NONE);
+		
+		Button btn_confirm = new Button(container, SWT.NONE);
+		btn_confirm.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false, 1, 1));
+		btn_confirm.setBounds(203, 90, 80, 27);
+		btn_confirm.setText(l.getString("OK"));
+		btn_confirm.addSelectionListener(new SelectionAdapter(){
+			public void widgetSelected(SelectionEvent e){
+				String basic_Pub = text.getText().trim();
+				if(basic_Pub == null || basic_Pub.length() == 0){
+					MessageBox messageBox = new MessageBox(getShell(), SWT.ERROR);
+					messageBox.setMessage(l.getString("Notice_null_basicPublishPoint"));
+					messageBox.open();
+					return ;
+				}
+			}
+		});
+		
+		Button btn_cancle = new Button(container, SWT.NONE);
+		btn_cancle.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false, 1, 1));
+		btn_cancle.setBounds(303, 90, 80, 27);
+		btn_cancle.setText(l.getString("cancle"));
+
+		return container;
+	}
+
+	/**
+	 * 视图标题命名 
+	 * @Author 江岩      
+	 * @Time 2019-06-06 14:18
+	 * @version 1.0
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("addCRLPublish"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+	/**
+	 * 重写窗口关闭事件
+	 * @Description 关闭窗口
+	 * @Author 江岩
+	 * @Time 2019-06-04 19:20
+	 * @version 1.0
+	 */
+	@Override
+	public void handleShellCloseEvent() {
+		int closeCode = -1;
+		MessageBox messagebox = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+		messagebox.setMessage(l.getString("Notice_exit") + "?");
+		closeCode = messagebox.open();
+		if (closeCode == SWT.YES) {
+			super.handleShellCloseEvent();
+		}
+	}
+}

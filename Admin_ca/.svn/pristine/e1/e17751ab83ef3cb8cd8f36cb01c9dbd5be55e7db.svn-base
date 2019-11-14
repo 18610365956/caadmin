@@ -1,0 +1,774 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.io.ByteArrayInputStream;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Properties;
+import java.util.ResourceBundle;
+import java.util.Set;
+
+import org.dom4j.Document;
+import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MouseAdapter;
+import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.SelectionListener;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.Tree;
+import org.eclipse.swt.widgets.TreeItem;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+
+/**
+ * BA 业务管理员视图
+ * @Author 江岩    
+ * @Time 2019-06-04 19:40
+ */
+public class BA_bak extends ApplicationWindow {
+
+	private TabFolder tabFolder;
+	private Table table;
+	private Tree tree, tree_op;
+	private TreeItem root, trtm_opRoot;
+	private Text txt_email, txt_tel, txt_memo, txt_userName;
+	private Button btnSubmitPerm;
+	private Composite composite_1;
+	private ApplicationWindow self;
+
+	private String g_adminName = null;
+	private HashMap<String, List<String[]>> dataCertInfo = new HashMap<String, List<String[]>>();
+	private HashMap<String, String[]> dataUserInfo = new HashMap<String, String[]>();
+	private HashMap<String, HashMap<String, HashSet<String>>> dataPermission = new HashMap<String, HashMap<String, HashSet<String>>>();
+
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private static ResourceBundle l = Env.getLanguage();
+
+	/**
+	 * BA 构造方法
+	 */
+	public BA_bak() {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.MIN);
+		addMenuBar();
+		createStatusLineManager();
+		self = this;
+	}
+
+	/**
+	 *  视图页面绘画
+	 * @Author 江岩      
+	 * @Time 2019-06-04 19:41
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+		container.setLayout(new GridLayout(1, false));
+
+		tabFolder = new TabFolder(container, SWT.NONE);
+		// tab11 BO
+		TabItem tabItem = new TabItem(tabFolder, SWT.NONE);
+		tabItem.setText(l.getString("BO"));
+		composite_1 = new Composite(tabFolder, SWT.NONE);
+		tabItem.setControl(composite_1);
+		panel_BO(composite_1);
+
+		refresh();
+		return container;
+	}
+
+	// 重新加载页面信息
+	void refresh() {
+		g_adminName = null;
+		getAdmins();
+		root.removeAll();
+		for (String name : dataCertInfo.keySet()) {
+			TreeItem ti = new TreeItem(root, SWT.NULL);
+			ti.setText(name);
+		}
+		table.removeAll();
+		txt_userName.setText("");
+		txt_tel.setText("");
+		txt_email.setText("");
+		txt_memo.setText("");
+		trtm_opRoot.removeAll();
+	}
+
+	// 对 BO管理员授权
+	private void setPermission(String role) {
+		TreeItem ti = trtm_opRoot;
+		StringBuffer sb = new StringBuffer(
+				"<permission><operations name =\"APPLYUSER,MODIFYUSER,CREATERA,UPDATERA,REVOKERA,REQUESTRACERT,PRIVILEGERA,MAKECACERTREQ,ADDTEMPLATE,UPDATETEMPLATE,DELETETEMPLATE,REVOKETEMPLATE,QUERYTEMPLATEDETAIL,QUERYTEMPLATELIST\"/>");
+		TreeItem[] templates = ti.getItems();
+		for (TreeItem t : templates) {
+			for (TreeItem b : t.getItems()) {
+				sb.append(
+						"<operations name=\"REQUESTCERT,GET2CODE,LOCKCERT,UNLOCKCERT,UPDATECERT,REVOKECERT,RECOVERENCCERTREQ\">")
+						.append("<certtype>").append(t.getText()).append("</certtype>").append("<basedn>")
+						.append(b.getText()).append("</basedn>").append("</operations>");
+			}
+		}
+		sb.append("</permission>");
+
+		Properties p = new Properties();
+		p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, g_adminName);
+		p.setProperty(PropertiesKeysRes.ADMIN_BO_POWERS, sb.toString());
+		try {
+			Env.client.sendRequest("PRIVILEGEBO", p);
+			MessageBox mb = new MessageBox(getShell(), SWT.OK);
+			mb.setMessage(l.getString("Notice_succ_grant"));
+			mb.open();
+		} catch (ServerException se) {
+			log.errlog("Grant BO fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_grant") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Grant BO fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_grant"));
+			mb.open();
+		}
+	}
+
+	// 查询管理员信息
+	private void getAdmins() {
+		try {
+			HashMap<String, List<String[]>> tmpCI;
+			HashMap<String, String[]> tmpUI;
+			Properties prop = new Properties();
+			tmpCI = dataCertInfo;
+			tmpUI = dataUserInfo;
+			Response res = Env.client.sendRequest("QUERYBOLIST", prop);
+			Properties[] ps = res.getItemData();
+			tmpCI.clear();
+			for (Properties p : ps) {
+				String name = p.getProperty(PropertiesKeysRes.ADMIN_USERNAME);
+				String sn = p.getProperty(PropertiesKeysRes.ADMIN_CERT_SN).toUpperCase();
+				String dn = p.getProperty(PropertiesKeysRes.ADMIN_CERT_SUBJECTDN);
+				String valid = p.getProperty(PropertiesKeysRes.ADMIN_VALIDATELEN);
+				String st = p.getProperty(PropertiesKeysRes.ADMIN_CERTSTATUS);
+				String tel = p.getProperty(PropertiesKeysRes.ADMIN_TELEPHONE);
+				String email = p.getProperty(PropertiesKeysRes.ADMIN_EMAIL);
+				String memo = p.getProperty(PropertiesKeysRes.ADMIN_REMARK);
+
+				String ips = p.getProperty(PropertiesKeysRes.IP_LIST, "");
+
+				String[] ci = new String[] { sn, dn, valid, Utils.changeStatus(st) };
+				if (!tmpCI.containsKey(name))
+					tmpCI.put(name, new ArrayList<String[]>());
+				tmpCI.get(name).add(ci);
+
+				if (!tmpUI.containsKey(name)) {
+					String[] ui = new String[] { tel, email, memo, ips };
+					tmpUI.put(name, ui);
+				}
+			}
+		} catch (ServerException se) {
+			log.errlog("Query BO list fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryBOList") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception e) {
+			log.errlog("Query BO list fail", e);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryBOList"));
+			mb.open();
+		}
+	}
+
+	// 显示管理员权限
+	private void showPermission(String role, String name) {
+		btnSubmitPerm.setEnabled(false);
+		TreeItem root = trtm_opRoot;
+		root.removeAll();
+		if (dataPermission.containsKey(name)) {
+			HashMap<String, HashSet<String>> perm = dataPermission.get(name);
+			Set<String> templates = perm.keySet();
+			for (String t : templates) {
+				TreeItem ti = new TreeItem(root, SWT.NULL);
+				ti.setText(t);
+				for (String basedn : perm.get(t)) {
+					TreeItem tiBasedn = new TreeItem(ti, SWT.NULL);
+					tiBasedn.setText(basedn);
+				}
+			}
+		} else {
+			HashMap<String, HashSet<String>> perm = new HashMap<String, HashSet<String>>();
+			dataPermission.put(name, perm);
+		}
+	}
+
+	// 查询管理员的权限
+	private void getPermission(String name) {
+		try {
+			Properties p = new Properties();
+			p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, name);
+			Response res = Env.client.sendRequest("GETPERMISSION", p);
+			String priviStr = res.getP().getProperty(PropertiesKeysRes.ADMIN_BO_POWERS);
+
+			SAXReader saxReader = new SAXReader();
+			Document doc = saxReader.read(new ByteArrayInputStream(priviStr.getBytes("UTF-8")));
+			Element root = doc.getRootElement();
+			List operations = root.elements();
+
+			if (dataPermission.containsKey((name))) {
+				dataPermission.get(name).clear();
+			} else {
+				dataPermission.put(name, new HashMap<String, HashSet<String>>());
+			}
+			if (operations != null) {
+				Iterator it = operations.iterator();
+				while (it.hasNext()) {
+					Element r = (Element) it.next();
+					if (r.elements() != null && r.elements().size() > 0) {
+						String template = r.elementTextTrim("certtype");
+						String basedn = r.elementTextTrim("basedn");
+						HashMap<String, HashSet<String>> perm = dataPermission.get(name);
+						if (!perm.containsKey(template)) {
+							perm.put(template, new HashSet<String>());
+						}
+						perm.get(template).add(basedn);
+					}
+				}
+			}
+		} catch (ServerException se) {
+			log.errlog("Query Permission fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(
+					l.getString("Notice_fail_queryPermission") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query Permission fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryPermission"));
+			mb.open();
+		}
+	}
+
+	/**
+	 * 计算 Tree 的某个节点到根节点的层级数      
+	 * @Author 江岩 
+	 * @Time   2019-06-04 19:50
+	 * @version 1.0
+	 */
+	private int countTreeLevel(TreeItem root, TreeItem it) {
+		int n = 0;
+		TreeItem tmp = it;
+		TreeItem p = tmp.getParentItem();
+		while (p != null) {
+			n += 1;
+			if (root.equals(p)) {
+				break;
+			} else {
+				p = p.getParentItem();
+			}
+		}
+		return n;
+	}
+
+	/**
+	 * 主视图页面绘画     
+	 * @Author 江岩 
+	 * @Time   2019-06-04 19:55
+	 * @version 1.0
+	 */
+	private void panel_BO(Composite composite) {
+		composite_1.setLayout(new FormLayout());
+		Group group = new Group(composite, SWT.NONE);
+		FormData fd_group = new FormData();
+		fd_group.bottom = new FormAttachment(0, 545);
+		fd_group.right = new FormAttachment(0, 255);
+		fd_group.top = new FormAttachment(0);
+		fd_group.left = new FormAttachment(0);
+		group.setLayoutData(fd_group);
+		group.setText(l.getString("list"));
+		group.setLayout(new FormLayout());
+
+		tree = new Tree(group, SWT.BORDER);
+		FormData fd_tree = new FormData();
+		fd_tree.bottom = new FormAttachment(0, 431);
+		fd_tree.right = new FormAttachment(0, 243);
+		fd_tree.top = new FormAttachment(0, 7);
+		fd_tree.left = new FormAttachment(0, 7);
+		tree.setLayoutData(fd_tree);
+
+		root = new TreeItem(tree, SWT.NULL);
+		root.setText(l.getString("admin"));
+		root.setExpanded(false);
+
+		tree.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				TreeItem ti = (TreeItem) e.item;
+				int n = countTreeLevel(root, ti);
+				String name = ti.getText();
+				if (n != 0) {
+					g_adminName = name;
+					table.removeAll();
+					List<String[]> ci = dataCertInfo.get(name);
+					for (String[] ss : ci) {
+						TableItem tci = new TableItem(table, SWT.NULL);
+						tci.setText(ss);
+					}
+					txt_userName.setText(name);
+					txt_tel.setText(dataUserInfo.get(name)[0]);
+					txt_email.setText(dataUserInfo.get(name)[1]);
+					txt_memo.setText(dataUserInfo.get(name)[2]);
+
+					// 授权
+					getPermission(name);
+					showPermission("BO", name);
+				} else {
+					g_adminName = null;
+				}
+			}
+		});
+
+		Button btn_refresh = new Button(group, SWT.NONE);
+		FormData fd_btnNewButton = new FormData();
+		fd_btnNewButton.right = new FormAttachment(tree, 73);
+		fd_btnNewButton.left = new FormAttachment(tree, 0, SWT.LEFT);
+		btn_refresh.setLayoutData(fd_btnNewButton);
+		btn_refresh.setText(l.getString("refresh"));
+		btn_refresh.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					refresh();
+				}
+			}
+		});
+
+		Button btn_create = new Button(group, SWT.NONE);
+		fd_btnNewButton.top = new FormAttachment(btn_create, 1, SWT.TOP);
+		FormData fd_btn_create = new FormData();
+		fd_btn_create.bottom = new FormAttachment(0, 490);
+		fd_btn_create.right = new FormAttachment(0, 243);
+		fd_btn_create.top = new FormAttachment(0, 462);
+		fd_btn_create.left = new FormAttachment(0, 175);
+		btn_create.setLayoutData(fd_btn_create);
+		btn_create.setText(l.getString("new"));
+		btn_create.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					Panel_NewBO newBO = new Panel_NewBO(self);
+					newBO.setBlockOnOpen(true);
+					int w = newBO.open();
+					if (w == 0) {
+						FileDialog fd = new FileDialog(getShell(), SWT.SAVE);
+						fd.setFilterExtensions(new String[] { "*.txt" });
+						String f = fd.open();
+						if (f != null) {
+							try {
+								FileWriter fw = new FileWriter(f);
+								fw.write(l.getString("refno") + ":" + newBO.refno);
+								fw.write(Utils.newLine);
+								fw.write(l.getString("authcode") + ":" + newBO.authcode);
+								fw.close();
+							} catch (Exception ee) {
+								log.errlog("REGISTERBO fail", ee);
+								MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+								mb.setMessage(l.getString("Notice_fail_newAdmin"));
+								mb.open();
+							}
+						}
+					}
+					refresh();
+				}
+			}
+		});
+
+		Group group_1 = new Group(composite, SWT.NONE);
+		FormData fd_group_1 = new FormData();
+		fd_group_1.bottom = new FormAttachment(0, 258);
+		fd_group_1.right = new FormAttachment(0, 974);
+		fd_group_1.top = new FormAttachment(0);
+		fd_group_1.left = new FormAttachment(0, 261);
+		group_1.setLayoutData(fd_group_1);
+		group_1.setText(l.getString("cert"));
+		group_1.setLayout(new FormLayout());
+
+		table = new Table(group_1, SWT.BORDER | SWT.FULL_SELECTION);
+		FormData fd_table = new FormData();
+		fd_table.bottom = new FormAttachment(0, 231);
+		fd_table.right = new FormAttachment(0, 700);
+		fd_table.top = new FormAttachment(0, 9);
+		fd_table.left = new FormAttachment(0, 7);
+		table.setLayoutData(fd_table);
+		table.setHeaderVisible(true);
+		table.setLinesVisible(true);
+
+		final Menu menu = new Menu(table);
+		MenuItem item_revokeCert = new MenuItem(menu, SWT.PUSH);
+		item_revokeCert.setText(l.getString("revokeCert"));
+		table.setMenu(menu);
+
+		item_revokeCert.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+				mb.setMessage(l.getString("Notice_revokeAdminCert"));
+				int r = mb.open();
+
+				if (SWT.YES == r) {
+					TableItem item = (TableItem) table.getSelection()[0];
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.ADMIN_CERT_SN, item.getText());
+					try {
+						Env.client.sendRequest("REVOKEBO", p);
+						mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_succ_revokeAdminCert"));
+						mb.open();
+						refresh();
+					} catch (ServerException se) {
+						log.errlog("Revoke BO fail", se);
+						mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_revokeAdminCert") + "[" + se.getErrorNum() + "]:"
+								+ se.getErrorMsg());
+						mb.open();
+					} catch (Exception ee) {
+						log.errlog("Revoke BO fail", ee);
+						mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_revokeAdminCert"));
+						mb.open();
+					}
+				}
+			}
+		});
+
+		table.addMouseListener(new MouseAdapter() {
+			public void mouseDown(MouseEvent me) {
+				int idx = table.getSelectionIndex();
+				if (idx == -1) {
+					table.setMenu(null);
+				} else {
+					table.setMenu(menu);
+				}
+			}
+		});
+
+		TableColumn tblclmn_serialNumber = new TableColumn(table, SWT.NONE);
+		tblclmn_serialNumber.setWidth(119);
+		tblclmn_serialNumber.setText(l.getString("SN"));
+
+		TableColumn tblclmn_subject = new TableColumn(table, SWT.NONE);
+		tblclmn_subject.setWidth(293);
+		tblclmn_subject.setText(l.getString("subject"));
+
+		TableColumn tblclmn_notAfter = new TableColumn(table, SWT.NONE);
+		tblclmn_notAfter.setWidth(163);
+		tblclmn_notAfter.setText(l.getString("validityDate"));
+
+		TableColumn tblclmn_state = new TableColumn(table, SWT.NONE);
+		tblclmn_state.setWidth(88);
+		tblclmn_state.setText(l.getString("status"));
+
+		Group group_2 = new Group(composite, SWT.NONE);
+		FormData fd_group_2 = new FormData();
+		fd_group_2.bottom = new FormAttachment(0, 550);
+		fd_group_2.right = new FormAttachment(0, 974);
+		fd_group_2.top = new FormAttachment(0, 264);
+		fd_group_2.left = new FormAttachment(0, 261);
+		group_2.setLayoutData(fd_group_2);
+		group_2.setText(l.getString("basicInfo"));
+		GridLayout gridL = new GridLayout(2, false);
+		gridL.marginTop = 10;
+		gridL.marginBottom = 10;
+		gridL.marginLeft = 20;
+		gridL.marginRight = 10;
+		gridL.verticalSpacing = 10;
+		group_2.setLayout(gridL);
+
+		Label lbl_uname = new Label(group_2, SWT.NONE);
+		GridData gd_lbl_uname = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lbl_uname.widthHint = 100;
+		lbl_uname.setLayoutData(gd_lbl_uname);
+		lbl_uname.setAlignment(SWT.RIGHT);
+		lbl_uname.setText(l.getString("username") + ":");
+
+		txt_userName = new Text(group_2, SWT.BORDER | SWT.READ_ONLY);
+		GridData gd_txt_userName = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_userName.widthHint = 245;
+		txt_userName.setLayoutData(gd_txt_userName);
+
+		Label lbl_email = new Label(group_2, SWT.NONE);
+		lbl_email.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_email.setAlignment(SWT.RIGHT);
+		lbl_email.setText(l.getString("email") + ":");
+
+		txt_email = new Text(group_2, SWT.BORDER);
+		GridData gd_txt_email = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_email.widthHint = 245;
+		txt_email.setTextLimit(30);
+		txt_email.setLayoutData(gd_txt_email);
+
+		Label lbl_tel = new Label(group_2, SWT.NONE);
+		lbl_tel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_tel.setAlignment(SWT.RIGHT);
+		lbl_tel.setText(l.getString("phone") + ":");
+
+		txt_tel = new Text(group_2, SWT.BORDER);
+		GridData gd_txt_tel = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_tel.widthHint = 245;
+		txt_tel.setTextLimit(20);
+		txt_tel.setLayoutData(gd_txt_tel);
+
+		Label lbl_memo = new Label(group_2, SWT.NONE);
+		lbl_memo.setLayoutData(new GridData(SWT.RIGHT, SWT.TOP, false, false, 1, 1));
+		lbl_memo.setAlignment(SWT.RIGHT);
+		lbl_memo.setText(l.getString("memo") + ":");
+
+		txt_memo = new Text(group_2, SWT.BORDER | SWT.WRAP | SWT.V_SCROLL);
+		GridData gd_txt_memo = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txt_memo.widthHint = 225;
+		gd_txt_memo.heightHint = 89;
+		txt_memo.setTextLimit(200);
+		txt_memo.setLayoutData(gd_txt_memo);
+		new Label(group_2, SWT.NONE);
+
+		Button btn_modify = new Button(group_2, SWT.NONE);
+		btn_modify.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				Properties p = new Properties();
+				p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, txt_userName.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_TELEPHONE, txt_tel.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_EMAIL, txt_email.getText().trim());
+				p.setProperty(PropertiesKeysRes.ADMIN_REMARK, txt_memo.getText().trim());
+
+				try {
+					Env.client.sendRequest("UPDATEBO", p);
+					MessageBox mb = new MessageBox(getShell(), SWT.OK);
+					mb.setMessage(l.getString("Notice_succ_updateBO"));
+					mb.open();
+				} catch (ServerException se) {
+					log.errlog("Update BO fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_updateBO") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception e1) {
+					log.errlog("Update BO fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_updateBO"));
+					mb.open();
+				}
+			}
+		});
+		GridData gd_btn_modify = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_modify.widthHint = 72;
+		btn_modify.setLayoutData(gd_btn_modify);
+		btn_modify.setText(l.getString("modify"));
+
+		Group group_3 = new Group(composite, SWT.NONE);
+		FormData fd_group_3 = new FormData();
+		fd_group_3.bottom = new FormAttachment(0, 556);
+		fd_group_3.right = new FormAttachment(0, 1212);
+		fd_group_3.top = new FormAttachment(0);
+		fd_group_3.left = new FormAttachment(0, 980);
+		group_3.setLayoutData(fd_group_3);
+		group_3.setText(l.getString("grant"));
+
+		tree_op = new Tree(group_3, SWT.BORDER);
+		tree_op.setBounds(10, 27, 212, 424);
+
+		trtm_opRoot = new TreeItem(tree_op, SWT.NONE);
+		trtm_opRoot.setText(l.getString("operation_grant"));
+		trtm_opRoot.setExpanded(true);
+
+		tree_op.addMouseListener(new MouseAdapter() {
+			public void mouseDown(MouseEvent me) {
+				if (me.button == 3) {
+					Menu menu = new Menu(tree_op);
+					MenuItem add = new MenuItem(menu, SWT.PUSH);
+					add.setText(l.getString("add_grant"));
+					if (g_adminName == null) {
+						add.setEnabled(false);
+					}
+					add.addSelectionListener(new SelectionListener() {
+						@Override
+						public void widgetSelected(SelectionEvent arg0) {
+							String tmpName = null;
+							TreeItem node = tree_op.getSelection()[0];
+							int n = countTreeLevel(trtm_opRoot, node);
+							if (n == 2) {
+								tmpName = node.getParentItem().getText();
+							}
+							if (n == 1) {
+								tmpName = node.getText();
+							}
+							Panel_AddPermission pa = new Panel_AddPermission(tmpName);
+							pa.setBlockOnOpen(true);
+							int w = pa.open();
+							if (w == 0) {
+								String pa_tmpName = pa.selectedTempName;
+								String pa_basedn = pa.baseDN;
+								HashMap<String, HashSet<String>> perm = dataPermission.get(g_adminName);
+								if (perm.containsKey(pa_tmpName)) {
+									perm.get(pa_tmpName).add(pa_basedn);
+								} else {
+									HashSet<String> set = new HashSet<String>();
+									set.add(pa_basedn);
+									perm.put(pa_tmpName, set);
+								}
+								showPermission("BO", g_adminName);
+								btnSubmitPerm.setEnabled(true);
+							}
+						}
+						@Override
+						public void widgetDefaultSelected(SelectionEvent arg0) {
+						}
+					});
+					MenuItem del = new MenuItem(menu, SWT.PUSH);
+					del.setText(l.getString("delete_grant"));
+					if (trtm_opRoot.getItemCount() == 0) {
+						del.setEnabled(false);
+					}
+					del.addSelectionListener(new SelectionListener() {
+						@Override
+						public void widgetSelected(SelectionEvent arg0) {
+							TreeItem node = tree_op.getSelection()[0];
+							int n = countTreeLevel(trtm_opRoot, node);
+							HashMap<String, HashSet<String>> perm = dataPermission.get(g_adminName);
+							if (n == 2) {
+								HashSet<String> set = perm.get(node.getParentItem().getText());
+								set.remove(node.getText());
+								if (set.isEmpty()) {
+									perm.remove(node.getParentItem().getText());
+								}
+							} else if (n == 1) {
+								perm.remove(node.getText());
+							}
+							showPermission("BO", g_adminName);
+							btnSubmitPerm.setEnabled(true);
+						}
+						@Override
+						public void widgetDefaultSelected(SelectionEvent arg0) {
+						}
+					});
+					tree_op.setMenu(menu);
+				}
+			}
+		});
+
+		btnSubmitPerm = new Button(group_3, SWT.NONE);
+		btnSubmitPerm.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				if (!Env.validSession()) {
+					handleShellCloseEvent();
+				} else {
+					Env.lastOperationTime();
+					setPermission("BO");
+					btnSubmitPerm.setEnabled(false);
+				}
+			}
+		});
+		btnSubmitPerm.setEnabled(false);
+		btnSubmitPerm.setBounds(65, 466, 157, 29);
+		btnSubmitPerm.setText(l.getString("modify_submit"));
+	}
+
+	// 菜单栏
+	@Override
+	protected MenuManager createMenuManager() {
+		MenuManager mm = new MenuManager();
+		MenuManager menu = new MenuManager(l.getString("exit"));
+		menu.add(new ExitAction());
+		mm.add(menu);
+		return mm;
+	}
+
+	// 视图标题栏命名
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("BA"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+	// 菜单栏退出事件
+	class ExitAction extends Action {
+		public ExitAction() {
+			setText(l.getString("exit"));
+		}
+
+		public void run() {
+			handleShellCloseEvent();
+		}
+	}
+
+	/**
+	 *  重写窗口关闭事件
+	 * @Author 江岩      
+	 * @Time 2019-06-04 19:58
+	 * @version 1.0
+	 */
+	@Override
+	public void handleShellCloseEvent() {
+		int closeCode = -1;
+		if (!Env.validSession()) { // session超时
+			MessageBox messagebox = new MessageBox(getShell());
+			messagebox.setMessage(l.getString("Notice_invalidSession"));
+			messagebox.open();
+			closeCode = SWT.YES;
+		} else {
+			MessageBox mb = new MessageBox(getShell(), SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+			mb.setMessage(l.getString("Notice_exit") + "？");
+			closeCode = mb.open();
+		}
+		if (closeCode == SWT.YES) {
+			MessageBox mb = new MessageBox(getShell(), SWT.ICON_INFORMATION);
+			mb.setMessage(l.getString("Notice_removeCert"));
+			mb.open();
+			super.handleShellCloseEvent();
+		}
+	}
+}

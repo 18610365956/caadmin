@@ -1,0 +1,520 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.security.NoSuchProviderException;
+import java.security.PublicKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.text.ParseException;
+import java.util.Properties;
+import java.util.ResourceBundle;
+
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.crypto.CryptoException;
+import cn.com.infosec.netcert.framework.crypto.HSM;
+import cn.com.infosec.netcert.framework.crypto.IHSM;
+import cn.com.infosec.netcert.framework.crypto.SM2Id;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+import cn.com.infosec.util.Base64;
+
+/**   
+ * 日志审计： 日志详情、提交审计意见
+ * @Author 江岩    
+ * @Time 2019-07-11 17:24
+ */
+public class Panel_LogDetail_Audit extends ApplicationWindow {
+
+	private Text t_logID, t_operType, t_operTarget, t_operTime, t_operResult, t_requestIP, t_requestData, t_signAlgo,
+			t_opinion;
+	private Combo combo;
+	private Properties properties;
+	private Properties properties_Detail;
+	private boolean enhanceLog = false;
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private static ResourceBundle l = Env.getLanguage();
+
+	/**
+	 * Create the application window.
+	 */
+	public Panel_LogDetail_Audit(Properties properties) {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.MIN);
+		setShellStyle(SWT.CLOSE | SWT.APPLICATION_MODAL);
+		this.properties = properties;
+	}
+
+	/**
+	 * Create contents of the application window.
+	 * @param parent
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+		container.setLayout(new FormLayout());
+
+		Group group = new Group(container, SWT.NONE);
+		FormData fd_group = new FormData();
+		fd_group.top = new FormAttachment(0, 10);
+		fd_group.right = new FormAttachment(0, 554);
+		fd_group.left = new FormAttachment(0, 10);
+		group.setLayoutData(fd_group);
+		group.setText(l.getString("AuditLogDetail"));
+		GridLayout gl_group = new GridLayout(7, false);
+		gl_group.horizontalSpacing = 5;
+		gl_group.verticalSpacing = 15;
+
+		group.setLayout(gl_group);
+
+		Label lbl_logId = new Label(group, SWT.NONE);
+		lbl_logId.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_logId.setText(l.getString("logId") + ":");
+
+		t_logID = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_logID = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_logID.widthHint = 84;
+		t_logID.setLayoutData(gd_t_logID);
+
+		Label lbl_operType = new Label(group, SWT.NONE);
+		GridData gd_lbl_operType = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lbl_operType.widthHint = 54;
+		lbl_operType.setLayoutData(gd_lbl_operType);
+		lbl_operType.setText(l.getString("operation_type") + ":");
+
+		t_operType = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_operType = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_operType.widthHint = 119;
+		t_operType.setLayoutData(gd_t_operType);
+
+		Label lbl_operObj = new Label(group, SWT.NONE);
+		lbl_operObj.setText(l.getString("operation_object") + ":");
+
+		t_operTarget = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_operTarget = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_operTarget.widthHint = 85;
+		t_operTarget.setLayoutData(gd_t_operTarget);
+
+		new Label(group, SWT.NONE);
+
+		Label lblNewLabel_3 = new Label(group, SWT.NONE);
+		lblNewLabel_3.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lblNewLabel_3.setText(l.getString("operation_time") + ":");
+
+		t_operTime = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_operTime = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_operTime.widthHint = 83;
+		t_operTime.setLayoutData(gd_t_operTime);
+
+		Label lblNewLabel_4 = new Label(group, SWT.NONE);
+		GridData gd_lblNewLabel_4 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel_4.widthHint = 54;
+		lblNewLabel_4.setLayoutData(gd_lblNewLabel_4);
+		lblNewLabel_4.setText(l.getString("operation_result") + ":");
+
+		t_operResult = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_operResult = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_operResult.widthHint = 120;
+		t_operResult.setLayoutData(gd_t_operResult);
+
+		Label lblNewLabel_5 = new Label(group, SWT.NONE);
+		GridData gd_lblNewLabel_5 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel_5.widthHint = 47;
+		lblNewLabel_5.setLayoutData(gd_lblNewLabel_5);
+		lblNewLabel_5.setText(l.getString("request_IP") + ":");
+
+		t_requestIP = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_requestIP = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_requestIP.widthHint = 85;
+		t_requestIP.setLayoutData(gd_t_requestIP);
+
+		new Label(group, SWT.NONE);
+
+		Label lblNewLabel_6 = new Label(group, SWT.NONE);
+		lblNewLabel_6.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lblNewLabel_6.setText(l.getString("requestData") + ":");
+
+		t_requestData = new Text(group, SWT.READ_ONLY | SWT.BORDER | SWT.V_SCROLL | SWT.WRAP);
+		GridData gd_t_requestData = new GridData(SWT.LEFT, SWT.CENTER, false, false, 6, 2);
+		gd_t_requestData.heightHint = 61;
+		gd_t_requestData.widthHint = 419;
+		t_requestData.setLayoutData(gd_t_requestData);
+		new Label(group, SWT.NONE);
+
+		Group group_1 = new Group(container, SWT.NONE);
+		fd_group.bottom = new FormAttachment(group_1, -6);
+		FormData fd_group_1 = new FormData();
+		fd_group_1.top = new FormAttachment(0, 232);
+		fd_group_1.right = new FormAttachment(100, -13);
+		fd_group_1.left = new FormAttachment(0, 10);
+		group_1.setLayoutData(fd_group_1);
+		GridLayout gl_group_1 = new GridLayout(2, false);
+		gl_group_1.verticalSpacing = 15;
+
+		group_1.setLayout(gl_group_1);
+		group_1.setText(l.getString("AuditLog"));
+		// 查询日志 详细信息
+		Response resp = null;
+		try {
+			resp = Env.client.sendRequest("OPLOGVIEW", properties);
+		} catch (ServerException se) {
+			log.errlog("Query operation log fail", se);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryLogDetail") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+			mb.open();
+		} catch (Exception ee) {
+			log.errlog("Query operation log fail", ee);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_fail_queryLogDetail"));
+			mb.open();
+		}
+		properties_Detail = resp.getP();
+		t_logID.setText(properties_Detail.getProperty(PropertiesKeysRes.LOGSN));
+		String operTime = null;
+		try {
+			t_operTarget.setText(properties_Detail.getProperty(PropertiesKeysRes.TARGET));
+			t_requestIP.setText(properties_Detail.getProperty(PropertiesKeysRes.REQUESTADDR));
+			operTime = Utils.format(Utils.parse(properties_Detail.getProperty(PropertiesKeysRes.OPTIME)));
+		} catch (ParseException e) {
+			log.errlog("Utils.format(...)", e);
+			MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+			mb.setMessage(l.getString("Notice_error_timeFormat") + e.getMessage());
+			mb.open();
+		}
+		t_operTime.setText(operTime);
+		t_operType.setText(properties_Detail.getProperty(PropertiesKeysRes.OPTYPE));
+
+		String operResult = ("0".equals(properties_Detail.getProperty(PropertiesKeysRes.RETURNCODE))
+				? l.getString("success")
+				: l.getString("failure") + "[" + properties_Detail.getProperty(PropertiesKeysRes.RETURNCODE) + "]");
+		t_operResult.setText(operResult);
+
+		Label lblNewLabel_7 = new Label(group, SWT.NONE);
+		GridData gd_lblNewLabel_7 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel_7.widthHint = 65;
+		lblNewLabel_7.setLayoutData(gd_lblNewLabel_7);
+		lblNewLabel_7.setText(l.getString("SignAlg") + ":");
+
+		t_signAlgo = new Text(group, SWT.READ_ONLY | SWT.BORDER);
+		GridData gd_t_signAlgo = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_t_signAlgo.widthHint = 83;
+		t_signAlgo.setLayoutData(gd_t_signAlgo);
+		new Label(group, SWT.NONE);
+
+		Button btn_getCert = new Button(group, SWT.NONE);
+		GridData gd_btn_getCert = new GridData(SWT.CENTER, SWT.CENTER, false, false, 1, 1);
+		gd_btn_getCert.widthHint = 109;
+		btn_getCert.setLayoutData(gd_btn_getCert);
+		btn_getCert.setText(l.getString("viewSignCert"));
+		btn_getCert.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				String reqCert = properties_Detail.getProperty(PropertiesKeysRes.REQCERT);
+				byte[] cerBin;
+				try {
+					cerBin = Base64.decode(reqCert);
+
+					CertificateFactory cf = CertificateFactory.getInstance("X.509", "INFOSEC");
+					X509Certificate c = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(cerBin));
+
+					Properties p = new Properties();
+					p.setProperty(PropertiesKeysRes.CERTSN, c.getSerialNumber().toString());
+					p.setProperty(PropertiesKeysRes.SUBJECTDN, c.getSubjectDN().toString());
+					p.setProperty("IssuerDN", c.getIssuerDN().getName());
+					p.setProperty(PropertiesKeysRes.NOTBEFORE, String.valueOf(Utils.format(c.getNotBefore())));
+					p.setProperty(PropertiesKeysRes.NOTAFTER, String.valueOf(Utils.format(c.getNotAfter())));
+
+					Panel_ViewReqCert panel_queryReqCert = new Panel_ViewReqCert(p);
+					panel_queryReqCert.setBlockOnOpen(true);
+					panel_queryReqCert.open();
+
+				} catch (IOException e1) {
+					log.errlog("Base64 decode fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_Base64Decode"));
+					mb.open();
+				} catch (CertificateException e1) {
+					log.errlog("Generate Certificate fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_CertFormat"));
+					mb.open();
+				} catch (NoSuchProviderException e1) {
+					log.errlog("Get CertificateFactory fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_CertFormat"));
+					mb.open();
+				} catch (ParseException e1) {
+					log.errlog("Time format error", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_timeFormat"));
+					mb.open();
+				}
+
+			}
+		});
+
+		Button btn_verifySign = new Button(group, SWT.NONE);
+		GridData gd_btn_verifySign = new GridData(SWT.CENTER, SWT.CENTER, false, false, 3, 1);
+		gd_btn_verifySign.widthHint = 113;
+		btn_verifySign.setLayoutData(gd_btn_verifySign);
+		btn_verifySign.setText(l.getString("verifySign"));
+		btn_verifySign.addSelectionListener(new SelectionAdapter() {
+
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				String reqSrc = properties_Detail.getProperty(PropertiesKeysRes.REQSRC);
+				String reqSignAlg = properties_Detail.getProperty(PropertiesKeysRes.REQSIGNALG);
+				String reqSign = properties_Detail.getProperty(PropertiesKeysRes.REQSIGN);
+				String reqCert = properties_Detail.getProperty(PropertiesKeysRes.REQCERT);
+				try {
+					byte[] cerBin = Base64.decode(reqCert);
+
+					CertificateFactory cf = CertificateFactory.getInstance("X.509", "INFOSEC");
+					X509Certificate c = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(cerBin));
+
+					PublicKey pubkey = c.getPublicKey();
+					IHSM hsm = HSM.getInst("");
+					if (hsm.verify(Base64.decode(reqSrc), Base64.decode(reqSign), pubkey, reqSignAlg,
+							SM2Id.getVerifyId("LOGAUDIT"))) {
+						MessageBox mb = new MessageBox(getShell(), SWT.OK);
+						mb.setMessage(l.getString("Notice_succ_verifySign"));
+						mb.open();
+					} else {
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_fail_verifySign"));
+						mb.open();
+					}
+				} catch (IOException e1) {
+					log.errlog("Base64 decode fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_Base64Decode"));
+					mb.open();
+				} catch (CertificateException e1) {
+					log.errlog("Generate Certificate fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_CertFormat"));
+					mb.open();
+				} catch (NoSuchProviderException e1) {
+					log.errlog("Get CertificateFactory fail", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_CertFormat"));
+					mb.open();
+				} catch (CryptoException e1) {
+					log.errlog("Verify sign", e1);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_verifySign"));
+					mb.open();
+				}
+			}
+		});
+
+		Label lblNewLabel = new Label(group, SWT.NONE);
+		GridData gd_lblNewLabel = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel.heightHint = -7;
+		gd_lblNewLabel.widthHint = 71;
+		lblNewLabel.setLayoutData(gd_lblNewLabel);
+		lblNewLabel.setText("");
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+
+		String ReqSrc = properties_Detail.getProperty(PropertiesKeysRes.REQSRC);
+		if (ReqSrc != null && ReqSrc.length() > 0) {
+			enhanceLog = true;
+			try {
+				byte[] byte_src = Base64.decode(properties_Detail.getProperty(PropertiesKeysRes.REQSRC));
+				String str_src = new String(byte_src);
+				t_requestData.setText(str_src);
+				t_signAlgo.setText(properties_Detail.getProperty(PropertiesKeysRes.REQSIGNALG));
+				properties_Detail.getProperty(PropertiesKeysRes.REQSIGN); // 验证按钮有关
+				properties_Detail.getProperty(PropertiesKeysRes.REQCERT);
+				properties_Detail.getProperty(PropertiesKeysRes.AUDITOR);
+				properties_Detail.getProperty(PropertiesKeysRes.AUDITTIME);
+				properties_Detail.getProperty(PropertiesKeysRes.AUDITSTATE);
+				properties_Detail.getProperty(PropertiesKeysRes.AUDITMEMO);
+			} catch (IOException e1) {
+				log.errlog("Base64 decode fail", e1);
+				MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+				mb.setMessage(l.getString("Notice_error_Base64Decode"));
+				mb.open();
+			}
+		} else {
+			btn_getCert.setEnabled(false);
+			btn_verifySign.setEnabled(false);
+		}
+
+		Label lblNewLabel_8 = new Label(group_1, SWT.RIGHT);
+		GridData gd_lblNewLabel_8 = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lblNewLabel_8.widthHint = 72;
+		lblNewLabel_8.setLayoutData(gd_lblNewLabel_8);
+		lblNewLabel_8.setText(l.getString("AuditStatus") + ":");
+
+		combo = new Combo(group_1, SWT.NONE | SWT.READ_ONLY);
+		GridData gd_combo = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_combo.widthHint = 64;
+		combo.setLayoutData(gd_combo);
+		combo.add(l.getString("normal"));
+		combo.add(l.getString("abnormal"));
+		combo.select(0);
+
+		Label lblNewLabel_9 = new Label(group_1, SWT.NONE);
+		lblNewLabel_9.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lblNewLabel_9.setText(l.getString("Audit_opinion") + ":");
+
+		t_opinion = new Text(group_1, SWT.BORDER | SWT.WRAP | SWT.MULTI);
+		GridData gd_t_opinion = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 3);
+		gd_t_opinion.heightHint = 69;
+		gd_t_opinion.widthHint = 431;
+		t_opinion.setTextLimit(120);
+		t_opinion.setLayoutData(gd_t_opinion);
+
+		Button btn_audit = new Button(container, SWT.NONE);
+		fd_group_1.bottom = new FormAttachment(btn_audit, -20);
+		new Label(group_1, SWT.NONE);
+		new Label(group_1, SWT.NONE);
+
+		FormData fd_btn_audit = new FormData();
+		fd_btn_audit.left = new FormAttachment(0, 355);
+		fd_btn_audit.top = new FormAttachment(0, 408);
+		btn_audit.setLayoutData(fd_btn_audit);
+		btn_audit.setText(l.getString("AuditLog"));
+		btn_audit.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				Properties p = new Properties();
+				p.setProperty(PropertiesKeysRes.LOGSN, t_logID.getText()); // logID
+				if (combo.getSelectionIndex() == 0) {
+					p.setProperty(PropertiesKeysRes.AUDITSTATE, "1"); // AuditState
+				} else {
+					p.setProperty(PropertiesKeysRes.AUDITSTATE, "2");
+				}
+				p.setProperty(PropertiesKeysRes.AUDITMEMO, t_opinion.getText().trim());
+				// 封装 数据
+				StringBuilder plain = new StringBuilder();
+				plain.append(Utils.nullToEmpty(t_operType.getText())).append(Utils.nullToEmpty(t_operTarget.getText()))
+						.append(Utils.nullToEmpty(properties_Detail.getProperty(PropertiesKeysRes.OPTIME)))
+						.append(Utils.nullToEmpty(properties_Detail.getProperty(PropertiesKeysRes.RETURNCODE)))
+						.append(Utils.nullToEmpty(t_requestIP.getText()));
+				if (enhanceLog) {
+					plain.append(Utils.nullToEmpty(t_requestData.getText().trim()))
+							.append(Utils.nullToEmpty(properties_Detail.getProperty(PropertiesKeysRes.REQSIGNALG)))
+							.append(Utils.nullToEmpty(properties_Detail.getProperty(PropertiesKeysRes.REQSIGN)))
+							.append(Utils.nullToEmpty(properties_Detail.getProperty(PropertiesKeysRes.REQCERT)));
+				}
+				if (combo.getSelectionIndex() == 0) {
+					plain.append("1").append(t_opinion.getText().trim());
+				} else {
+					plain.append("2").append(t_opinion.getText().trim());
+				}
+				byte[] auditSign = null;
+				try {
+					auditSign = Env.client.genSign(plain.toString().getBytes("UTF-8"));
+					p.setProperty(PropertiesKeysRes.AUDITSIGN, Base64.encode(auditSign));
+					p.setProperty(PropertiesKeysRes.AUDITSIGNALG, Env.client.getSignAlg());
+					Env.client.sendRequest("OPLOGAUDIT", p);
+
+					MessageBox mb = new MessageBox(getShell(), SWT.OK);
+					mb.setMessage(l.getString("Notice_succ_AuditLog"));
+					mb.open();
+					close();
+				} catch (ServerException se) {
+					log.errlog("Audit log fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_AuditLog") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception ee) {
+					log.errlog("Audit log fail", ee);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_AuditLog"));
+					mb.open();
+				}
+			}
+		});
+		Button btn_cancle = new Button(container, SWT.NONE);
+		fd_btn_audit.right = new FormAttachment(100, -142);
+		FormData fd_btn_cancle = new FormData();
+		fd_btn_cancle.top = new FormAttachment(btn_audit, 0, SWT.TOP);
+		fd_btn_cancle.left = new FormAttachment(btn_audit, 20);
+		fd_btn_cancle.right = new FormAttachment(100, -42);
+		btn_cancle.setLayoutData(fd_btn_cancle);
+		btn_cancle.setText(l.getString("cancle"));
+		btn_audit.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				handleShellCloseEvent();
+			}
+		});
+		if ("DOWNADMINCERT".equalsIgnoreCase(t_operType.getText())) {
+			btn_verifySign.setEnabled(false);
+			btn_getCert.setEnabled(false);
+		}
+		return container;
+	}
+
+	/**
+	 * Create the menu manager.
+	 * @return the menu manager
+	 */
+	@Override
+	protected MenuManager createMenuManager() {
+		MenuManager menuManager = new MenuManager("menu");
+		return menuManager;
+	}
+
+	/**
+	 * Configure the shell.
+	 * @param newShell
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("AuditLog"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+	/**
+	 * Return the initial size of the window.
+	 */
+	@Override
+	protected Point getInitialSize() {
+		return new Point(573, 500);
+	}
+	public static void main(String[] args) {
+		
+		Panel_LogDetail_Audit t = new Panel_LogDetail_Audit(null);
+		t.setBlockOnOpen(true);
+		t.open();
+		
+	}
+}

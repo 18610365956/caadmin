@@ -1,0 +1,92 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.util.ResourceBundle;
+
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+
+/**   
+ * @Description (≤π≥‰√Ë ˆ) 
+ * @Author Ω≠—“    
+ * @Time 2019-08-19 20:41
+ */
+public class Panel_UpdateTemplateDialog {
+	private static Text text;
+	private static ResourceBundle l = Env.getLanguage();
+	public static String returnCode = "0";
+	/**
+	 * Create the application window.
+	 */
+	public Panel_UpdateTemplateDialog(String type) {
+	}
+
+
+	public static void messageDialog(String type, String message) {
+		
+		final Display display = new Display();
+		final Shell shell = new Shell(display, SWT.DIALOG_TRIM);
+		shell.setText(l.getString("OK"));
+		shell.setSize(439, 170);
+		shell.setLayout(null);
+
+		text = new Text(shell, SWT.NONE | SWT.WRAP | SWT.READ_ONLY);
+		text.setBounds(20, 27, 410, 17);
+		text.setBackground(SWTResourceManager.getColor(SWT.COLOR_WIDGET_BACKGROUND));
+		text.setMessage(l.getString("Notrice_exportUserInfo") + "?");
+		
+		Button btn_ok = new Button(shell, SWT.NONE);
+		btn_ok.setBounds(107, 93, 65, 27);
+		btn_ok.setText(l.getString("next"));
+		btn_ok.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				returnCode = "1";
+				shell.close();
+			}
+		});
+		
+		Button btn_exportNext = new Button(shell, SWT.NONE);
+		btn_exportNext.setBounds(211, 93, 80, 27);
+		btn_exportNext.setText(l.getString("export_next"));
+		btn_exportNext.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				returnCode = "2";
+				shell.close();
+			}
+		});
+		
+		Button btn_cancle = new Button(shell, SWT.NONE);
+		btn_cancle.setBounds(323, 93, 80, 27);
+		btn_cancle.setText(l.getString("cancle"));
+		btn_exportNext.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				returnCode = "-1";
+				shell.close();
+			}
+		});
+		shell.open();
+		while (!shell.isDisposed()) {
+			if (!display.readAndDispatch())
+				display.sleep();
+		}
+	}
+
+	/**
+	 * Launch the application.
+	 * @param args
+	 */
+	public static void main(String args[]) {
+		messageDialog(null,null);
+	}
+
+}

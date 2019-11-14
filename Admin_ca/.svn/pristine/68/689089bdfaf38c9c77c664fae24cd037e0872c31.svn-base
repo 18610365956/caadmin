@@ -1,0 +1,246 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.util.Properties;
+import java.util.ResourceBundle;
+
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+
+/**
+ * 新建 BO 管理员
+ * @Author 江岩
+ * @Time 2019-06-04 20:51
+ */
+public class Panel_NewBO extends ApplicationWindow {
+	public String refno, authcode;
+	private Text txt_userName;
+	private Text txt_email;
+	private Text txt_tel;
+	private Text txt_memo;
+	private Spinner certValid;
+	private Combo certValidUnit;
+	protected ApplicationWindow parentWin;
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private static ResourceBundle l = Env.getLanguage();
+	public String BO_Name = null;;
+	// 构造方法
+	public Panel_NewBO(ApplicationWindow parent) {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.APPLICATION_MODAL);
+		parentWin = parent;
+	}
+
+	/**
+	 * 视图页面
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:53
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+
+		GridLayout gl_container = new GridLayout(4, false);
+		gl_container.marginTop = 20;
+		gl_container.marginBottom = 20;
+		gl_container.marginLeft = 5;
+		gl_container.marginRight = 25;
+		gl_container.horizontalSpacing = 10;
+		gl_container.verticalSpacing = 10;
+		container.setLayout(gl_container);
+
+		Label lbl_uname = new Label(container, SWT.NONE);
+		GridData gd_lbl_uname = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_lbl_uname.widthHint = 56;
+		lbl_uname.setLayoutData(gd_lbl_uname);
+		lbl_uname.setAlignment(SWT.RIGHT);
+		lbl_uname.setText(l.getString("username") + ":");
+
+		txt_userName = new Text(container, SWT.BORDER);
+		GridData gd_txt_userName = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_userName.widthHint = 223;
+		txt_userName.setTextLimit(20);
+		txt_userName.setLayoutData(gd_txt_userName);
+
+		Label label = new Label(container, SWT.NONE);
+		GridData gd_label = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_label.widthHint = 11;
+		label.setLayoutData(gd_label);
+		label.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		label.setText("*");
+
+		Label lbl_email = new Label(container, SWT.NONE);
+		lbl_email.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_email.setAlignment(SWT.RIGHT);
+		lbl_email.setText(l.getString("email") + ":");
+
+		txt_email = new Text(container, SWT.BORDER);
+		GridData gd_txt_email = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_email.widthHint = 223;
+		txt_email.setTextLimit(30);
+		txt_email.setLayoutData(gd_txt_email);
+		new Label(container, SWT.NONE);
+
+		Label lbl_tel = new Label(container, SWT.NONE);
+		lbl_tel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_tel.setAlignment(SWT.RIGHT);
+		lbl_tel.setText(l.getString("phone") + ":");
+
+		txt_tel = new Text(container, SWT.BORDER);
+		GridData gd_txt_tel = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_tel.widthHint = 223;
+		txt_tel.setTextLimit(20);
+		txt_tel.setLayoutData(gd_txt_tel);
+		new Label(container, SWT.NONE);
+
+		Label lbl_valid = new Label(container, SWT.NONE);
+		lbl_valid.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_valid.setAlignment(SWT.RIGHT);
+		lbl_valid.setText(l.getString("validityDate") + ":");
+
+		certValid = new Spinner(container, SWT.BORDER | SWT.READ_ONLY);
+		GridData gd_certValid = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_certValid.widthHint = 54;
+		certValid.setLayoutData(gd_certValid);
+		certValid.setMaximum(99);
+		certValid.setMinimum(1);
+		certValid.setIncrement(1);
+
+		certValidUnit = new Combo(container, SWT.READ_ONLY);
+		GridData gd_certValidUnit = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_certValidUnit.widthHint = 30;
+		certValidUnit.setLayoutData(gd_certValidUnit);
+		certValidUnit.add(l.getString("day"));
+		certValidUnit.add(l.getString("month"));
+		certValidUnit.add(l.getString("year"));
+		certValidUnit.select(2);
+		new Label(container, SWT.NONE);
+
+		Label lbl_memo = new Label(container, SWT.NONE);
+		lbl_memo.setLayoutData(new GridData(SWT.RIGHT, SWT.TOP, false, false, 1, 1));
+		lbl_memo.setAlignment(SWT.RIGHT);
+		lbl_memo.setText(l.getString("memo") + ":");
+
+		txt_memo = new Text(container, SWT.BORDER | SWT.WRAP | SWT.V_SCROLL);
+		GridData gd_txt_memo = new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1);
+		gd_txt_memo.heightHint = 60;
+		gd_txt_memo.widthHint = 203;
+		txt_memo.setTextLimit(200);
+		txt_memo.setLayoutData(gd_txt_memo);
+		new Label(container, SWT.NONE);
+		new Label(container, SWT.NONE);
+		new Label(container, SWT.NONE);
+
+		Button btn_ok = new Button(container, SWT.NONE);
+		GridData gd_btn_ok = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_ok.widthHint = 73;
+		btn_ok.setBounds(238, 238, 68, 29);
+		btn_ok.setText(l.getString("OK"));
+		new Label(container, SWT.NONE);
+		btn_ok.setLayoutData(gd_btn_ok);
+		btn_ok.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				String name = txt_userName.getText();
+				String email = txt_email.getText();
+				String tel = txt_tel.getText().trim();
+				String memo = txt_memo.getText();
+				if (name == null || name.length() == 0) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_null_username"));
+					mb.open();
+					return;
+				}
+				if (email != null && email.length() != 0) {
+					if (!Utils.checkEmail(email)) {
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_error_email"));
+						mb.open();
+						return;
+					}
+				}
+				if (tel != null && tel.length() != 0) {
+					if (!Utils.checkTel(tel)) {
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_error_phone"));
+						mb.open();
+						return;
+					}
+				}
+				Properties p = new Properties();
+				p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, name);
+				p.setProperty(PropertiesKeysRes.ADMIN_VALIDATELEN, certValid.getText().trim());
+
+				String unit = "d";
+				switch (certValidUnit.getSelectionIndex()) {
+				case 1:
+					unit = "m";
+					break;
+				case 2:
+					unit = "y";
+					break;
+				}
+				p.setProperty(PropertiesKeysRes.VALIDITYLEN_UNIT, unit);
+				p.setProperty(PropertiesKeysRes.ADMIN_EMAIL, email);
+				p.setProperty(PropertiesKeysRes.ADMIN_TELEPHONE, tel);
+				p.setProperty(PropertiesKeysRes.ADMIN_REMARK, txt_memo.getText().trim());
+				try {
+					Response resp = Env.client.sendRequest("REGISTERBO", p);
+					refno = resp.getP().getProperty(PropertiesKeysRes.REFNO);
+					authcode = resp.getP().getProperty(PropertiesKeysRes.AUTHCODE);
+					BO_Name = name;
+					close();
+				} catch (ServerException se) {
+					log.errlog("REGISTERBO fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_newAdmin") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception ee) {
+					log.errlog("REGISTERBO fail", ee);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_newAdmin"));
+					mb.open();
+				}
+			}
+		});
+		return container;
+	}
+
+	/**
+	 * 视图页面命名
+	 * @param (Shell)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:53
+	 * @version 1.0
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("newBO"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+}

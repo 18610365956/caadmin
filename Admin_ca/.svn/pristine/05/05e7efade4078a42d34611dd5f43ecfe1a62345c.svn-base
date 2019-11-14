@@ -1,0 +1,363 @@
+package cn.com.infosec.netcert.caAdmin.ui.admin;
+
+import java.io.FileOutputStream;
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.ResourceBundle;
+import java.util.Set;
+
+import org.eclipse.jface.window.ApplicationWindow;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.List;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import cn.com.infosec.netcert.caAdmin.utils.Env;
+import cn.com.infosec.netcert.caAdmin.utils.Utils;
+import cn.com.infosec.netcert.framework.Response;
+import cn.com.infosec.netcert.framework.ServerException;
+import cn.com.infosec.netcert.framework.log.FileLogger;
+import cn.com.infosec.netcert.framework.resource.PropertiesKeysRes;
+import cn.com.infosec.util.Base64;
+
+/**
+ * 新建 RA 管理员
+ * @Author 江岩
+ * @Time 2019-06-04 20:53
+ */
+public class Panel_NewRA extends ApplicationWindow {
+	private Text txt_userName, txt_email, txt_tel, txt_memo, txtIP, txt_p10;
+	private Spinner certValid;
+	private Combo certValidUnit;
+	protected ApplicationWindow parentWin;
+	private List listIP;
+
+	private Set<String> ips = new HashSet<String>();
+	private FileLogger log = FileLogger.getLogger(this.getClass());
+	private static ResourceBundle l = Env.getLanguage();
+
+	/**
+	 * 构造方法
+	 */
+	public Panel_NewRA(ApplicationWindow parent) {
+		super(null);
+		setShellStyle(SWT.CLOSE | SWT.APPLICATION_MODAL);
+		parentWin = parent;
+	}
+
+	/**
+	 * 视图页面绘画
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:54
+	 * @version 1.0
+	 */
+	@Override
+	protected Control createContents(Composite parent) {
+		Composite container = new Composite(parent, SWT.NONE);
+
+		GridLayout gridLayout = new GridLayout(1, false);
+		gridLayout.marginTop = 10;
+		gridLayout.marginBottom = 30;
+		gridLayout.marginLeft = 20;
+		gridLayout.marginRight = 40;
+		gridLayout.verticalSpacing = 15;
+		container.setLayout(gridLayout);
+
+		Group grpInfo = new Group(container, SWT.NONE);
+		GridData gd_grpInfo = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_grpInfo.heightHint = 349;
+		gd_grpInfo.widthHint = 364;
+		grpInfo.setLayoutData(gd_grpInfo);
+		grpInfo.setText(l.getString("basicInfo"));
+
+		Label lbl_uname = new Label(grpInfo, SWT.NONE);
+		lbl_uname.setBounds(10, 33, 49, 17);
+		lbl_uname.setAlignment(SWT.RIGHT);
+		lbl_uname.setText(l.getString("username") + ":");
+
+		txt_userName = new Text(grpInfo, SWT.BORDER);
+		txt_userName.setBounds(78, 30, 267, 23);
+		txt_userName.setTextLimit(20);
+
+		Label lbl_email = new Label(grpInfo, SWT.NONE);
+		lbl_email.setBounds(10, 78, 49, 17);
+		lbl_email.setAlignment(SWT.RIGHT);
+		lbl_email.setText(l.getString("email") + ":");
+
+		txt_email = new Text(grpInfo, SWT.BORDER);
+		txt_email.setBounds(78, 75, 267, 23);
+		txt_email.setTextLimit(30);
+
+		Label lbl_tel = new Label(grpInfo, SWT.NONE);
+		lbl_tel.setBounds(10, 117, 49, 17);
+		lbl_tel.setAlignment(SWT.RIGHT);
+		lbl_tel.setText(l.getString("phone") + ":");
+
+		txt_tel = new Text(grpInfo, SWT.BORDER);
+		txt_tel.setBounds(78, 114, 267, 23);
+		txt_tel.setTextLimit(20);
+
+		Label lbl_valid = new Label(grpInfo, SWT.NONE);
+		lbl_valid.setBounds(10, 154, 49, 17);
+		lbl_valid.setAlignment(SWT.RIGHT);
+		lbl_valid.setText(l.getString("validityDate") + ":");
+
+		certValid = new Spinner(grpInfo, SWT.BORDER | SWT.READ_ONLY);
+		certValid.setBounds(78, 151, 56, 23);
+		certValid.setMaximum(99);
+		certValid.setMinimum(1);
+		certValid.setIncrement(1);
+
+		certValidUnit = new Combo(grpInfo, SWT.READ_ONLY);
+		certValidUnit.setBounds(149, 151, 87, 25);
+		certValidUnit.add(l.getString("day"));
+		certValidUnit.add(l.getString("month"));
+		certValidUnit.add(l.getString("year"));
+		certValidUnit.select(2);
+
+		Label lbl_memo = new Label(grpInfo, SWT.NONE);
+		lbl_memo.setBounds(10, 278, 49, 17);
+		lbl_memo.setAlignment(SWT.RIGHT);
+		lbl_memo.setText(l.getString("memo") + ":");
+
+		txt_memo = new Text(grpInfo, SWT.BORDER | SWT.WRAP | SWT.V_SCROLL);
+		txt_memo.setBounds(80, 275, 265, 78);
+		txt_memo.setTextLimit(200);
+
+		Label lbl_CSR = new Label(grpInfo, SWT.NONE);
+		lbl_CSR.setBounds(10, 191, 58, 17);
+		lbl_CSR.setAlignment(SWT.RIGHT);
+		lbl_CSR.setText(l.getString("CSR") + ":");
+
+		txt_p10 = new Text(grpInfo, SWT.BORDER | SWT.WRAP | SWT.V_SCROLL);
+		txt_p10.setBounds(78, 188, 267, 73);
+
+		Label label_1 = new Label(grpInfo, SWT.NONE);
+		label_1.setBounds(351, 33, 6, 17);
+		label_1.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		label_1.setText("*");
+
+		Label label = new Label(grpInfo, SWT.NONE);
+		label.setBounds(351, 191, 16, 17);
+		label.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		label.setText("*");
+
+		Group group = new Group(container, SWT.NONE);
+		GridLayout gridLayout2 = new GridLayout(4, false);
+		gridLayout2.marginTop = 10;
+		gridLayout2.marginBottom = 10;
+		gridLayout2.marginLeft = 10;
+		gridLayout2.marginRight = 10;
+		gridLayout2.verticalSpacing = 10;
+
+		group.setLayout(gridLayout2);
+		GridData gd_group = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_group.widthHint = 367;
+		gd_group.heightHint = 140;
+		group.setLayoutData(gd_group);
+		group.setText(l.getString("IPwhiteList"));
+
+		Label lbl_ip = new Label(group, SWT.NONE);
+		lbl_ip.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lbl_ip.setAlignment(SWT.RIGHT);
+		lbl_ip.setText("IP:");
+
+		txtIP = new Text(group, SWT.BORDER);
+		GridData gd_txtIP = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_txtIP.widthHint = 190;
+		txtIP.setTextLimit(15);
+		txtIP.setLayoutData(gd_txtIP);
+		new Label(group, SWT.NONE);
+
+		Button btnIpAdd = new Button(group, SWT.NONE);
+		GridData gd_btnIpAdd = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btnIpAdd.widthHint = 66;
+		btnIpAdd.setLayoutData(gd_btnIpAdd);
+		btnIpAdd.setText(l.getString("add"));
+
+		btnIpAdd.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				String ip = txtIP.getText().trim();
+				if (!Utils.checkIp(ip)) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_error_IPAddress"));
+					mb.open();
+					return;
+				}
+				if (!ips.contains(ip)) {
+					ips.add(ip);
+					listIP.add(ip);
+				} else {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_isExist_IP"));
+					mb.open();
+				}
+				txtIP.setText("");
+			}
+		});
+
+		Label lblList = new Label(group, SWT.NONE);
+		lblList.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+		lblList.setText(l.getString("list") + ":");
+		lblList.setAlignment(SWT.RIGHT);
+
+		listIP = new List(group, SWT.BORDER);
+		GridData gd_listIP = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 2);
+		gd_listIP.widthHint = 190;
+		listIP.setLayoutData(gd_listIP);
+
+		Label label_2 = new Label(group, SWT.NONE);
+		label_2.setForeground(SWTResourceManager.getColor(SWT.COLOR_RED));
+		label_2.setText("*");
+
+		Button btnIpDel = new Button(group, SWT.NONE);
+		GridData gd_btnIpDel = new GridData(SWT.LEFT, SWT.CENTER, false, false, 1, 1);
+		gd_btnIpDel.widthHint = 65;
+		btnIpDel.setLayoutData(gd_btnIpDel);
+		btnIpDel.setText(l.getString("delete"));
+		btnIpDel.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				if (listIP.getSelectionIndex() == -1) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_not_chooseIP"));
+					mb.open();
+					return;
+				}
+				String ip = listIP.getSelection()[0];
+				ips.remove(ip);
+				listIP.remove(listIP.getSelectionIndex());
+			}
+		});
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+		new Label(group, SWT.NONE);
+
+		Button btn_ok = new Button(container, SWT.NONE);
+		GridData gd_btn_ok = new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1);
+		gd_btn_ok.widthHint = 60;
+		btn_ok.setLayoutData(gd_btn_ok);
+		btn_ok.setText(l.getString("OK"));
+
+		btn_ok.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+
+				String name = txt_userName.getText().trim();
+				String email = txt_email.getText().trim();
+				String tel = txt_tel.getText().trim();
+				if (name == null || name.length() == 0) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_null_username"));
+					mb.open();
+					return;
+				}
+				if (email != null && email.length() != 0) {
+					if (!Utils.checkEmail(email)) {
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_error_email"));
+						mb.open();
+						return;
+					}
+				}
+				if (tel != null && tel.length() != 0) {
+					if (!Utils.isInteger(tel)) {
+						MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+						mb.setMessage(l.getString("Notice_error_phone"));
+						mb.open();
+						return;
+					}
+				}
+				if (txt_p10.getText().trim() == null || txt_p10.getText().trim().length() == 0) {
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_null_CSR"));
+					mb.open();
+					return;
+				}
+				Properties p = new Properties();
+				p.setProperty(PropertiesKeysRes.ADMIN_USERNAME, name);
+				p.setProperty(PropertiesKeysRes.ADMIN_VALIDATELEN, certValid.getText());
+
+				String unit = "d";
+				switch (certValidUnit.getSelectionIndex()) {
+				case 1:
+					unit = "m";
+					break;
+				case 2:
+					unit = "y";
+					break;
+				}
+				p.setProperty(PropertiesKeysRes.VALIDITYLEN_UNIT, unit);
+
+				p.setProperty(PropertiesKeysRes.ADMIN_EMAIL, email);
+				p.setProperty(PropertiesKeysRes.ADMIN_TELEPHONE, tel);
+				p.setProperty(PropertiesKeysRes.ADMIN_REMARK, txt_memo.getText().trim());
+
+				p.setProperty(PropertiesKeysRes.PUBLICKEY, txt_p10.getText().trim());
+
+				StringBuffer sb = new StringBuffer();
+				for (String s : listIP.getItems()) {
+					sb.append(s).append(",");
+				}
+				p.setProperty(PropertiesKeysRes.IP_LIST, sb.substring(0, sb.length() - 1));
+
+				try {
+					Response resp = Env.client.sendRequest("CREATERA", p);
+					((BO) parentWin).refresh("RA");
+					FileDialog fd = new FileDialog(getShell(), SWT.SAVE);
+					fd.setFilterExtensions(new String[] { "*.cer" });
+					String f = fd.open();
+					if (f != null) {
+						FileOutputStream fos = new FileOutputStream(f);
+						fos.write(Base64.decode(resp.getP().getProperty(PropertiesKeysRes.P7DATA)));
+						fos.close();
+					}
+					close();
+				} catch (ServerException se) {
+					log.errlog("Create RA fail", se);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(
+							l.getString("Notice_fail_newAdmin") + "[" + se.getErrorNum() + "]:" + se.getErrorMsg());
+					mb.open();
+				} catch (Exception ee) {
+					log.errlog("Create RA fail", ee);
+					MessageBox mb = new MessageBox(getShell(), SWT.ERROR);
+					mb.setMessage(l.getString("Notice_fail_newAdmin"));
+					mb.open();
+				}
+			}
+		});
+		return container;
+	}
+
+	/**
+	 * 视图标题栏命名
+	 * @param (Shell)
+	 * @Author 江岩
+	 * @Time 2019-06-04 20:54
+	 * @version 1.0
+	 */
+	@Override
+	protected void configureShell(Shell shell) {
+		super.configureShell(shell);
+		shell.setText(l.getString("newRA"));
+		shell.setImage(new Image(shell.getDisplay(), "res/logo.png"));
+	}
+
+}
