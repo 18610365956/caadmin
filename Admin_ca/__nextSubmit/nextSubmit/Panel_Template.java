@@ -79,6 +79,7 @@ public class Panel_Template extends ApplicationWindow {
 		certTemplate_sign.setAdd(false); // 手动设置
 
 		certTemplate_enc = new CertTemplate();
+		
 		// certTemplate_enc.setAdd(false); // 确定 是否加载 加密模板信息
 		// certTemplate_enc.setSignal(true); // 用来在 修改模板时 显示 加密页面
 		queryTemplateDetail(templateName, certTemplate_sign, certTemplate_enc); // 给certTemplate赋值
@@ -99,6 +100,7 @@ public class Panel_Template extends ApplicationWindow {
 		FormData fd_tabFolder = new FormData();
 		fd_tabFolder.left = new FormAttachment(0, 10);
 		fd_tabFolder.right = new FormAttachment(100, -10);
+		fd_tabFolder.top = new FormAttachment(0, 5);
 		fd_tabFolder.top = new FormAttachment(0, 5);
 		tabFolder.setLayoutData(fd_tabFolder);
 		FormLayout fl_tabFolder = new FormLayout();
