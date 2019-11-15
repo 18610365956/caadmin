@@ -94,7 +94,7 @@ public class Panel_Config extends ApplicationWindow {
 		gd_text_timeout.widthHint = 52;
 		timeout.setTextLimit(3);
 		timeout.setLayoutData(gd_text_timeout);
-
+		timeout.setToolTipText("");
 		Label lblNewLabel_1 = new Label(container, SWT.NONE);
 		lblNewLabel_1.setText("(" + l.getString("seconds") + ")");
 		new Label(container, SWT.NONE);
