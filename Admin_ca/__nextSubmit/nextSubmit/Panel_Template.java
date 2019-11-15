@@ -106,6 +106,7 @@ public class Panel_Template extends ApplicationWindow {
 		FormLayout fl_tabFolder = new FormLayout();
 
 		
+		
 		tabFolder.setLayout(fl_tabFolder);
 
 		if (!certTemplate_sign.isAdd()) { // 是否显示 基本信息页 ，如果是新增操作，不显示
