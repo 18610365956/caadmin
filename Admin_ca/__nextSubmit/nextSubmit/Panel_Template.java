@@ -102,6 +102,8 @@ public class Panel_Template extends ApplicationWindow {
 		fd_tabFolder.right = new FormAttachment(100, -10);
 		fd_tabFolder.top = new FormAttachment(0, 5);
 		fd_tabFolder.top = new FormAttachment(0, 5);
+		
+		
 		tabFolder.setLayoutData(fd_tabFolder);
 		FormLayout fl_tabFolder = new FormLayout();
 
